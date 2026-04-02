@@ -7,6 +7,8 @@ export interface InterviewSession {
   currentQuestionIndex: number;
   questions: InterviewQuestion[];
   status: 'CREATED' | 'IN_PROGRESS' | 'COMPLETED' | 'EVALUATED';
+  // 新增：记录该场面试关联的知识库
+  knowledgeBaseIds?: number[];
 }
 
 export interface InterviewQuestion {
@@ -34,6 +36,8 @@ export interface CreateInterviewRequest {
   questionCount: number;
   resumeId?: number;
   forceCreate?: boolean;  // 是否强制创建新会话（忽略未完成的会话）
+  // 新增：绑定的知识库 ID 列表
+  knowledgeBaseIds?: number[];
 }
 
 export interface SubmitAnswerRequest {

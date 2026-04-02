@@ -31,25 +31,26 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 public class InterviewPersistenceService {
-    
+
     private final InterviewSessionRepository sessionRepository;
     private final InterviewAnswerRepository answerRepository;
     private final ResumeRepository resumeRepository;
     private final ObjectMapper objectMapper;
-    
+
     /**
      * 保存新的面试会话
      */
     @Transactional(rollbackFor = Exception.class)
-    public InterviewSessionEntity saveSession(String sessionId, Long resumeId, 
-                                              int totalQuestions, 
-                                              List<InterviewQuestionDTO> questions) {
+    public InterviewSessionEntity saveSession(String sessionId, Long resumeId,
+                                              int totalQuestions,
+                                              List<InterviewQuestionDTO> questions,
+                                              List<Long> knowledgeBaseIds) {
         try {
             Optional<ResumeEntity> resumeOpt = resumeRepository.findById(resumeId);
             if (resumeOpt.isEmpty()) {
                 throw new BusinessException(ErrorCode.RESUME_NOT_FOUND);
             }
-            
+
             InterviewSessionEntity session = new InterviewSessionEntity();
             session.setSessionId(sessionId);
             session.setResume(resumeOpt.get());
@@ -57,17 +58,19 @@ public class InterviewPersistenceService {
             session.setCurrentQuestionIndex(0);
             session.setStatus(InterviewSessionEntity.SessionStatus.CREATED);
             session.setQuestionsJson(objectMapper.writeValueAsString(questions));
-            
+            if (knowledgeBaseIds != null && !knowledgeBaseIds.isEmpty()) {
+                session.setKnowledgeBaseIdsJson(objectMapper.writeValueAsString(knowledgeBaseIds));
+            }
             InterviewSessionEntity saved = sessionRepository.save(session);
             log.info("面试会话已保存: sessionId={}, resumeId={}", sessionId, resumeId);
-            
+
             return saved;
         } catch (JacksonException e) {
             log.error("序列化问题列表失败: {}", e.getMessage(), e);
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "保存会话失败");
         }
     }
-    
+
     /**
      * 更新会话状态
      */
@@ -103,7 +106,7 @@ public class InterviewPersistenceService {
             log.debug("评估状态已更新: sessionId={}, status={}", sessionId, status);
         }
     }
-    
+
     /**
      * 更新当前问题索引
      */
@@ -117,7 +120,7 @@ public class InterviewPersistenceService {
             sessionRepository.save(session);
         }
     }
-    
+
     /**
      * 保存面试答案
      */
@@ -146,12 +149,12 @@ public class InterviewPersistenceService {
         answer.setFeedback(feedback);
 
         InterviewAnswerEntity saved = answerRepository.save(answer);
-        log.info("面试答案已保存: sessionId={}, questionIndex={}, score={}", 
+        log.info("面试答案已保存: sessionId={}, questionIndex={}, score={}",
                 sessionId, questionIndex, score);
-        
+
         return saved;
     }
-    
+
     /**
      * 保存面试报告
      */
@@ -233,21 +236,21 @@ public class InterviewPersistenceService {
             log.error("序列化报告失败: {}", e.getMessage(), e);
         }
     }
-    
+
     /**
      * 根据会话ID获取会话
      */
     public Optional<InterviewSessionEntity> findBySessionId(String sessionId) {
         return sessionRepository.findBySessionId(sessionId);
     }
-    
+
     /**
      * 获取简历的所有面试记录
      */
     public List<InterviewSessionEntity> findByResumeId(Long resumeId) {
         return sessionRepository.findByResumeIdOrderByCreatedAtDesc(resumeId);
     }
-    
+
     /**
      * 删除简历的所有面试会话
      * 由于InterviewSessionEntity设置了cascade = CascadeType.ALL, orphanRemoval = true
@@ -261,7 +264,7 @@ public class InterviewPersistenceService {
             log.info("已删除 {} 个面试会话（包含所有答案）", sessions.size());
         }
     }
-    
+
     /**
      * 删除单个面试会话
      * 由于InterviewSessionEntity设置了cascade = CascadeType.ALL, orphanRemoval = true
@@ -277,7 +280,7 @@ public class InterviewPersistenceService {
             throw new BusinessException(ErrorCode.INTERVIEW_SESSION_NOT_FOUND);
         }
     }
-    
+
     /**
      * 查找未完成的面试会话（CREATED或IN_PROGRESS状态）
      */
@@ -288,7 +291,7 @@ public class InterviewPersistenceService {
         );
         return sessionRepository.findFirstByResumeIdAndStatusInOrderByCreatedAtDesc(resumeId, unfinishedStatuses);
     }
-    
+
     /**
      * 根据会话ID查找所有答案
      */
@@ -302,13 +305,13 @@ public class InterviewPersistenceService {
     public List<String> getHistoricalQuestionsByResumeId(Long resumeId) {
         // 只查询最近的 10 个会话，避免加载过多历史数据
         List<InterviewSessionEntity> sessions = sessionRepository.findTop10ByResumeIdOrderByCreatedAtDesc(resumeId);
-        
+
         return sessions.stream()
             .map(InterviewSessionEntity::getQuestionsJson)
             .filter(json -> json != null && !json.isEmpty())
             .flatMap(json -> {
                 try {
-                    List<InterviewQuestionDTO> questions = objectMapper.readValue(json, 
+                    List<InterviewQuestionDTO> questions = objectMapper.readValue(json,
                         new TypeReference<List<InterviewQuestionDTO>>() {});
                     // 过滤掉追问，只保留主问题作为历史参考
                     return questions.stream()

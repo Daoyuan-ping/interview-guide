@@ -109,35 +109,37 @@ export default function Interview({ resumeText, resumeId, onBack, onInterviewCom
         setStage('interview');
   };
 
-    const startInterview = async () => {
+// 修改点1：这里增加 knowledgeBaseIds?: number[] 参数
+  const startInterview = async (knowledgeBaseIds?: number[]) => {
     setIsCreating(true);
     setError('');
 
-        try {
+    try {
       // 创建新面试（如果 forceCreateNew 为 true，则强制创建新会话）
       const newSession = await interviewApi.createSession({
         resumeText,
         questionCount,
         resumeId,
-        forceCreate: forceCreateNew
+        forceCreate: forceCreateNew,
+        knowledgeBaseIds // <-- 修改点2：将选中的题库 IDs 传给后端
       });
 
-            // 重置强制创建标志
+      // 重置强制创建标志
       setForceCreateNew(false);
 
-            // 如果返回的是未完成的会话（currentQuestionIndex > 0 或已有答案），恢复它
-            const hasProgress = newSession.currentQuestionIndex > 0 ||
-                          newSession.questions.some(q => q.userAnswer) ||
-                          newSession.status === 'IN_PROGRESS';
+      // 如果返回的是未完成的会话（currentQuestionIndex > 0 或已有答案），恢复它
+      const hasProgress = newSession.currentQuestionIndex > 0 ||
+          newSession.questions.some(q => q.userAnswer) ||
+          newSession.status === 'IN_PROGRESS';
 
-            if (hasProgress) {
+      if (hasProgress) {
         // 这是恢复的会话
         restoreSession(newSession);
       } else {
         // 全新的会话
         setSession(newSession);
 
-                if (newSession.questions.length > 0) {
+        if (newSession.questions.length > 0) {
           const firstQuestion = newSession.questions[0];
           setCurrentQuestion(firstQuestion);
           setMessages([{
@@ -148,7 +150,7 @@ export default function Interview({ resumeText, resumeId, onBack, onInterviewCom
           }]);
         }
 
-                setStage('interview');
+        setStage('interview');
       }
     } catch (err) {
       setError('创建面试失败，请重试');
