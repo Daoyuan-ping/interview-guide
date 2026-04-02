@@ -4,77 +4,101 @@
 /* 启用深色模式 - 使用 class 策略 */
 @custom-variant dark (&:where(.dark, .dark *));
 
-
-/* 自定义主题 */
+/* 自定义主题：AI 科技感配色 */
 @theme {
-  --color-primary-50: #eef2ff;
-  --color-primary-100: #e0e7ff;
-  --color-primary-200: #c7d2fe;
-  --color-primary-300: #a5b4fc;
-  --color-primary-400: #818cf8;
-  --color-primary-500: #6366f1;
-  --color-primary-600: #4f46e5;
-  --color-primary-700: #4338ca;
-  --color-primary-800: #3730a3;
-  --color-primary-900: #312e81;
+    /* 使用高贵的紫罗兰 (Violet) 作为品牌主色调 */
+    --color-primary-50: #f5f3ff;
+    --color-primary-100: #ede9fe;
+    --color-primary-200: #ddd6fe;
+    --color-primary-300: #c4b5fd;
+    --color-primary-400: #a78bfa;
+    --color-primary-500: #8b5cf6;
+    --color-primary-600: #7c3aed;
+    --color-primary-700: #6d28d9;
+    --color-primary-800: #5b21b6;
+    --color-primary-900: #4c1d95;
 
-    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
-    'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica,
-    Arial, sans-serif;
+    /* 优雅的字体栈 */
+    --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+
+    /* 自定义柔和阴影，取代 Tailwind 默认生硬的阴影 */
+    --shadow-soft: 0 4px 40px -2px rgba(0, 0, 0, 0.04);
+    --shadow-glow: 0 0 20px rgba(139, 92, 246, 0.3);
 }
 
-/* 自定义基础样式 */
+/* 全局基础样式 */
 @layer base {
-  html, body, #root {
-    @apply h-full m-0 p-0;
-  }
+    html, body, #root {
+        @apply h-full m-0 p-0 scroll-smooth;
+    }
 
-  body {
-      @apply antialiased;
-      @apply bg-gradient-to-br from-slate-50 to-indigo-50 text-slate-900;
-      @apply dark:bg-gradient-to-br dark:from-slate-900 dark:to-slate-800 dark:text-slate-100;
-  }
+    body {
+        @apply antialiased transition-colors duration-500;
+        /* 浅色模式：淡雅的背景叠加细腻的网格或渐变 */
+        @apply bg-slate-50 text-slate-800;
+        /* 深色模式：深邃的极客黑底色 */
+        @apply dark:bg-[#0B0F19] dark:text-slate-200;
+    }
 
-  #root {
-    @apply min-h-screen;
-  }
+    /* 使用伪元素制作固定在背后的柔和渐变光晕 */
+    body::before {
+        content: '';
+        @apply fixed inset-0 -z-10 pointer-events-none transition-opacity duration-500;
+        @apply bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary-100/40 via-transparent to-blue-50/40;
+        @apply dark:bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] dark:from-primary-900/20 dark:via-[#0B0F19] dark:to-blue-900/10;
+    }
 }
 
-/* 深色模式通用样式 - 自动应用于所有卡片和容器 */
+/* 核心 UI 组件类提取 (复用性更高) */
 @layer components {
-    /* 通用卡片背景 */
-    .dark-card {
-        @apply bg-white dark:bg-slate-800 rounded-2xl;
+    /* 1. 毛玻璃卡片（用于简历列表、面板等） */
+    .glass-card {
+        @apply bg-white/70 backdrop-blur-xl border border-white/50 shadow-soft rounded-2xl transition-all duration-300;
+        @apply dark:bg-slate-900/50 dark:border-slate-800/80 dark:shadow-none;
     }
 
-    /* 通用输入框 */
-    .dark-input {
-        @apply bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-white;
+    .glass-card-hover {
+        @apply hover:shadow-xl hover:-translate-y-1 hover:border-primary-200/60 hover:bg-white/90;
+        @apply dark:hover:border-primary-800/50 dark:hover:bg-slate-800/80 dark:hover:shadow-glow;
     }
 
-    /* 通用文字颜色 */
-    .dark-text {
-        @apply text-slate-900 dark:text-white;
+    /* 2. 现代输入框（用于上传框、聊天输入） */
+    .modern-input {
+        @apply w-full bg-white/50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 placeholder-slate-400 backdrop-blur-sm transition-all;
+        @apply focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 focus:bg-white;
+        @apply dark:bg-slate-900/50 dark:border-slate-700 dark:text-white dark:placeholder-slate-500 dark:focus:bg-slate-900;
     }
 
-    .dark-text-muted {
-        @apply text-slate-500 dark:text-slate-400;
+    /* 3. 按钮系统 */
+    .btn-primary {
+        @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary-600 to-primary-500 text-white rounded-xl font-medium shadow-lg shadow-primary-500/25 transition-all;
+        @apply hover:shadow-primary-500/40 hover:-translate-y-0.5 hover:from-primary-500 hover:to-primary-400;
+        @apply active:scale-95 disabled:opacity-50 disabled:pointer-events-none;
+    }
+
+    .btn-secondary {
+        @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-white text-slate-700 border border-slate-200 rounded-xl font-medium shadow-sm transition-all;
+        @apply hover:bg-slate-50 hover:border-slate-300 hover:text-primary-600;
+        @apply dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:border-slate-600 dark:hover:text-primary-400;
+        @apply active:scale-95 disabled:opacity-50 disabled:pointer-events-none;
+    }
+
+    /* 4. AI 渐变文字特效 */
+    .text-gradient {
+        @apply bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-blue-500 dark:from-primary-400 dark:to-blue-400;
     }
 }
 
-/* 自定义滚动条 */
+/* 滚动条优化 */
 @layer utilities {
-  .scrollbar-thin::-webkit-scrollbar {
-    @apply w-2 h-2;
-  }
-
-    .scrollbar-thin::-webkit-scrollbar-track {
-    @apply bg-slate-100 rounded;
-        @apply dark:bg-slate-800;
-  }
-
-    .scrollbar-thin::-webkit-scrollbar-thumb {
-    @apply bg-slate-300 rounded hover:bg-slate-400;
-        @apply dark:bg-slate-600 dark:hover:bg-slate-500;
-  }
+    .scrollbar-custom::-webkit-scrollbar {
+        @apply w-1.5 h-1.5;
+    }
+    .scrollbar-custom::-webkit-scrollbar-track {
+        @apply bg-transparent;
+    }
+    .scrollbar-custom::-webkit-scrollbar-thumb {
+        @apply bg-slate-300/60 rounded-full hover:bg-slate-400;
+        @apply dark:bg-slate-700/60 dark:hover:bg-slate-600;
+    }
 }

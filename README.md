@@ -320,7 +320,7 @@ pnpm dev
 
 ```bash
 # 1. 复制环境变量配置文件
-cp .env.example .env
+cp .env .env
 
 # 2. 编辑 .env 文件，填入 AI 配置
 # vim .env
