@@ -11,14 +11,17 @@ mapstruct = "1.6.3"
 aws-sdk = "2.29.51"
 itext = "8.0.5"
 pinyin4j = "2.5.0"
-
+hutool = "5.8.44"
 [libraries]
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit-jupiter" }
 lombok = { module = "org.projectlombok:lombok", version.ref = "lombok" }
 tika-core = { module = "org.apache.tika:tika-core", version.ref = "tika" }
 tika-parsers = { module = "org.apache.tika:tika-parsers-standard-package", version.ref = "tika" }
 pinyin4j = { module = "com.belerweb:pinyin4j", version.ref = "pinyin4j" }
-
+# 新增：Spring Boot 邮件支持 (版本由 spring-boot 插件自动管理)
+spring-boot-starter-mail = { module = "org.springframework.boot:spring-boot-starter-mail" }
+# 新增：Hutool 图形验证码工具箱
+hutool-captcha = { module = "cn.hutool:hutool-captcha", version.ref = "hutool" }
 [plugins]
 spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
 spring-dependency-management = { id = "io.spring.dependency-management", version = "1.1.7" }

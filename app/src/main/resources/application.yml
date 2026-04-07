@@ -74,7 +74,27 @@ spring:
         dimensions: 3000  # text-embedding-v3实际生成的向量维度
         initialize-schema: true # 开发环境设置为 true，方便快速启动。生产环境设置为 false，手动管理数据库 schema，避免意外变更。
         remove-existing-vector-store-table: false  # 保留现有表和数据
-
+# 邮箱配置 (这里以 QQ 邮箱为例，请替换为你的真实配置)
+  mail:
+    host: smtp.qq.com
+    username: 321078859@qq.com
+    password: iuojaztgxodccbad
+    protocol: smtp
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          ssl:
+            enable: true
+          socketFactory:
+            port: 465
+            class: javax.net.ssl.SSLSocketFactory
+          connectiontimeout: 5000
+          timeout: 3000
+          writetimeout: 5000
 # Application custom configuration
 app:
   ai:

@@ -64,6 +64,9 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation libs.junit.jupiter
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    implementation(libs.spring.boot.starter.mail)
+    implementation(libs.hutool.captcha)
 }
 
 java {
