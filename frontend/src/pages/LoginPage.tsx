@@ -6,8 +6,10 @@ import './Landing.css';
 export default function LoginPage() {
     const navigate = useNavigate();
 
-    // 模式切换
-    const [isRegister, setIsRegister] = useState(false);
+    // 模式切换：登录、注册、忘记密码
+    const [authMode, setAuthMode] = useState<'login' | 'register' | 'forgot'>('login');
+    const isRegister = authMode === 'register';
+    const isForgot = authMode === 'forgot';
 
     // 表单状态
     const [formData, setFormData] = useState({
@@ -41,8 +43,9 @@ export default function LoginPage() {
     useEffect(() => {
         setGlobalError('');
         setFieldErrors({ username: '', password: '', confirmPassword: '', email: '', emailCode: '', captchaCode: '' });
-        if (isRegister) fetchCaptcha();
-    }, [isRegister, fetchCaptcha]);
+        // 注册和忘记密码都需要图形验证码
+        if (isRegister || isForgot) fetchCaptcha();
+    }, [authMode, fetchCaptcha]);
 
     useEffect(() => {
         if (countdown > 0) {
@@ -55,16 +58,16 @@ export default function LoginPage() {
     const validateField = (name: string, value: string) => {
         switch (name) {
             case 'username':
-                if (!value) return '请输入账号';
-                if (isRegister && !/^[a-zA-Z0-9_-]{4,16}$/.test(value)) return '需为 4-16 位字母/数字/下划线/连字符';
+                if (!value && !isForgot) return '请输入账号';
+                if (isRegister && !/^[a-zA-Z0-9_-]{4,16}$/.test(value)) return '需为 4-16 位字母/数字/下划线';
                 break;
             case 'email':
-                if (!value) return '请输入邮箱';
-                if (isRegister && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return '请输入正确的邮箱格式';
+                if (!value && (isRegister || isForgot)) return '请输入邮箱';
+                if ((isRegister || isForgot) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return '请输入正确的邮箱格式';
                 break;
             case 'password':
-                if (!value) return '请输入密码';
-                if (isRegister) {
+                if (!value) return isForgot ? '请输入新密码' : '请输入密码';
+                if (isRegister || isForgot) {
                     if (value.length < 8 || value.length > 18) return '密码长度需为 8-18 位';
                     let types = 0;
                     if (/[a-zA-Z]/.test(value)) types++;
@@ -74,13 +77,13 @@ export default function LoginPage() {
                 }
                 break;
             case 'confirmPassword':
-                if (isRegister && value !== formData.password) return '两次输入的密码不一致';
+                if ((isRegister || isForgot) && value !== formData.password) return '两次输入的密码不一致';
                 break;
             case 'captchaCode':
-                if (isRegister && !value) return '请输入图形验证码';
+                if ((isRegister || isForgot) && !value) return '请输入图形验证码';
                 break;
             case 'emailCode':
-                if (isRegister && !value) return '请输入邮箱验证码';
+                if ((isRegister || isForgot) && !value) return '请输入邮箱验证码';
                 break;
         }
         return '';
@@ -134,7 +137,12 @@ export default function LoginPage() {
 
         let hasError = false;
         const newFieldErrors = { ...fieldErrors };
-        const fieldsToCheck = isRegister ? ['username', 'email', 'captchaCode', 'emailCode', 'password', 'confirmPassword'] : ['username', 'password'];
+
+        // 根据不同模式决定需要校验的字段
+        let fieldsToCheck: string[] = [];
+        if (authMode === 'login') fieldsToCheck = ['username', 'password'];
+        if (authMode === 'register') fieldsToCheck = ['username', 'email', 'captchaCode', 'emailCode', 'password', 'confirmPassword'];
+        if (authMode === 'forgot') fieldsToCheck = ['email', 'captchaCode', 'emailCode', 'password', 'confirmPassword'];
 
         fieldsToCheck.forEach(field => {
             const error = validateField(field, formData[field as keyof typeof formData]);
@@ -151,20 +159,25 @@ export default function LoginPage() {
         setGlobalError('');
 
         try {
-            let res;
-            if (isRegister) {
-                res = await authApi.register({ ...formData, captchaKey });
+            if (authMode === 'register') {
+                const res = await authApi.register({ ...formData, captchaKey });
+                localStorage.setItem('ai_token', res.token);
+                localStorage.setItem('ai_user', JSON.stringify({ userId: res.userId, username: res.username, role: res.role }));
                 alert('注册成功，自动登录进入系统！');
+                navigate('/upload');
+            } else if (authMode === 'forgot') {
+                await authApi.resetPassword({ email: formData.email, emailCode: formData.emailCode, newPassword: formData.password });
+                alert('密码重置成功，请使用新密码重新登录！');
+                setAuthMode('login'); // 找回密码成功后返回登录页
             } else {
-                res = await authApi.login({ username: formData.username, password: formData.password });
+                const res = await authApi.login({ username: formData.username, password: formData.password });
+                localStorage.setItem('ai_token', res.token);
+                localStorage.setItem('ai_user', JSON.stringify({ userId: res.userId, username: res.username, role: res.role }));
+                navigate('/upload');
             }
-
-            localStorage.setItem('ai_token', res.token);
-            localStorage.setItem('ai_user', JSON.stringify({ userId: res.userId, username: res.username, role: res.role }));
-            navigate('/upload');
         } catch (err: any) {
             setGlobalError(err.response?.data?.message || err.message || '操作失败，请重试');
-            if (isRegister) {
+            if (isRegister || isForgot) {
                 fetchCaptcha();
                 setFormData(prev => ({ ...prev, captchaCode: '' }));
             }
@@ -186,8 +199,7 @@ export default function LoginPage() {
                             onChange={handleInputChange} onBlur={handleBlur}
                             className="form-input custom-input" placeholder={placeholder}
                             style={{
-                                borderColor: '#e2e8f0', // 去掉变红，保持原色
-                                backgroundColor: '#f8fafc', // 去掉变红，保持原色
+                                borderColor: '#e2e8f0', backgroundColor: '#f8fafc',
                                 padding: '0.65rem 1rem 0.65rem 2.6rem', borderRadius: '10px', width: '100%', outline: 'none', transition: 'all 0.3s ease',
                                 fontSize: '0.95rem'
                             }}
@@ -200,7 +212,6 @@ export default function LoginPage() {
                             {error && <><i className="fas fa-exclamation-circle"></i>{error}</>}
                         </div>
                     </div>
-                    {/* 强制不收缩 (flexShrink: 0)，解决图形验证码被挤扁的问题 */}
                     {extraElement && <div style={{ flexShrink: 0 }}>{extraElement}</div>}
                 </div>
             </div>
@@ -208,7 +219,6 @@ export default function LoginPage() {
     };
 
     return (
-        // 核心：锁定全屏，overflow hidden 杜绝滚动条
         <div className="landing-body login-layout" style={{ height: '100vh', overflow: 'hidden', display: 'flex' }}>
             <style>{`
                 .custom-input:focus { border-color: var(--landing-primary) !important; background-color: white !important; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1) !important; }
@@ -223,8 +233,8 @@ export default function LoginPage() {
 
             <div className="floating-shapes"><div className="shape"></div><div className="shape"></div><div className="shape"></div><div className="shape"></div></div>
 
-            {/* 100% 还原的 HTML 左侧品牌区 */}
             <div className="brand-section-left">
+                {/* 品牌区代码保持不变 */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '3rem', zIndex: 2 }}>
                     <svg style={{ width: '48px', height: '48px', flexShrink: 0 }} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
                         <rect width="32" height="32" rx="8" fill="white"/>
@@ -236,12 +246,8 @@ export default function LoginPage() {
                     </svg>
                     <div style={{ fontSize: '2.5rem', fontWeight: 700, color: 'white' }}>AI Interview</div>
                 </div>
-                <h1 style={{ fontSize: '1.8rem', fontWeight: 600, color: 'white', textAlign: 'center', marginBottom: '1.5rem', zIndex: 2, lineHeight: 1.4 }}>
-                    用AI重新定义求职面试
-                </h1>
-                <p style={{ fontSize: '1.1rem', color: 'rgba(255, 255, 255, 0.85)', textAlign: 'center', maxWidth: '500px', lineHeight: 1.8, zIndex: 2 }}>
-                    基于Qwen大模型的智能简历分析与AI面试官平台，为你提供个性化的求职准备方案，助力计算机设计大赛与春招秋招。
-                </p>
+                <h1 style={{ fontSize: '1.8rem', fontWeight: 600, color: 'white', textAlign: 'center', marginBottom: '1.5rem', zIndex: 2, lineHeight: 1.4 }}>用AI重新定义求职面试</h1>
+                <p style={{ fontSize: '1.1rem', color: 'rgba(255, 255, 255, 0.85)', textAlign: 'center', maxWidth: '500px', lineHeight: 1.8, zIndex: 2 }}>基于Qwen大模型的智能简历分析与AI面试官平台，为你提供个性化的求职准备方案，助力计算机设计大赛与春招秋招。</p>
                 <div className="brand-features-grid">
                     <div className="brand-feature-item"><i className="fas fa-file-alt"></i> <span>智能简历解析</span></div>
                     <div className="brand-feature-item"><i className="fas fa-comments"></i> <span>AI模拟面试</span></div>
@@ -250,21 +256,24 @@ export default function LoginPage() {
                 </div>
             </div>
 
-            {/* 右侧表单区 */}
             <div className="login-section" style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '2rem' }}>
                 <div className="login-card login-card-modern" style={{
                     width: '100%',
-                    maxWidth: isRegister ? '780px' : '420px', // 注册状态变宽以容纳双列
+                    maxWidth: (isRegister || isForgot) ? '780px' : '420px',
                     padding: '2.5rem 3rem', borderRadius: '24px',
                     boxShadow: '0 20px 40px rgba(0,0,0,0.08)',
                     transition: 'max-width 0.4s cubic-bezier(0.4, 0, 0.2, 1)'
                 }}>
                     <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
                         <h2 style={{ fontSize: '1.8rem', color: 'var(--landing-text-dark)', marginBottom: '0.4rem', fontWeight: 700 }}>
-                            {isRegister ? '注册专属账号' : '欢迎回来'}
+                            {authMode === 'login' && '欢迎回来'}
+                            {authMode === 'register' && '注册专属账号'}
+                            {authMode === 'forgot' && '找回密码'}
                         </h2>
                         <p style={{ color: '#64748b', fontSize: '0.9rem' }}>
-                            {isRegister ? '只需简单几步，即可开启你的 AI 面试之旅' : '登录系统即可使用全部 AI 功能'}
+                            {authMode === 'login' && '登录系统即可使用全部 AI 功能'}
+                            {authMode === 'register' && '只需简单几步，即可开启你的 AI 面试之旅'}
+                            {authMode === 'forgot' && '验证邮箱后，即可重置您的账号密码'}
                         </p>
                     </div>
 
@@ -275,20 +284,20 @@ export default function LoginPage() {
                     )}
 
                     <form onSubmit={handleSubmit}>
-                        {/* 逻辑分组布局：注册双列，登录单列 */}
-                        <div style={{ display: 'grid', gridTemplateColumns: isRegister ? '1fr 1fr' : '1fr', columnGap: '2.5rem' }}>
-
-                            {/* 左侧：账号安全列（或者登录列） */}
+                        <div style={{ display: 'grid', gridTemplateColumns: (isRegister || isForgot) ? '1fr 1fr' : '1fr', columnGap: '2.5rem' }}>
+                            {/* 左侧：账号/邮箱及密码 */}
                             <div>
-                                {renderInput('username', '系统账号', 'fas fa-user', 'text', '请输入账号')}
-                                {renderInput('password', '登录密码', 'fas fa-lock', 'password', '请输入密码')}
-                                {isRegister && renderInput('confirmPassword', '确认密码', 'fas fa-check-circle', 'password', '请再次确认密码')}
+                                {authMode !== 'forgot' && renderInput('username', '系统账号', 'fas fa-user', 'text', '请输入账号')}
+                                {authMode === 'forgot' && renderInput('email', '绑定邮箱', 'fas fa-envelope', 'email', '请输入绑定的邮箱')}
+
+                                {renderInput('password', isForgot ? '新密码' : '登录密码', 'fas fa-lock', 'password', isForgot ? '请输入新密码' : '请输入密码')}
+                                {(isRegister || isForgot) && renderInput('confirmPassword', '确认密码', 'fas fa-check-circle', 'password', '请再次确认密码')}
                             </div>
 
-                            {/* 右侧：验证安全列（仅注册显示） */}
-                            {isRegister && (
+                            {/* 右侧：验证安全列（仅注册和忘记密码显示） */}
+                            {(isRegister || isForgot) && (
                                 <div>
-                                    {renderInput('email', '安全邮箱', 'fas fa-envelope', 'email', '请输入邮箱')}
+                                    {authMode === 'register' && renderInput('email', '安全邮箱', 'fas fa-envelope', 'email', '请输入邮箱')}
                                     {renderInput('captchaCode', '图形验证', 'fas fa-shield-alt', 'text', '右侧验证码',
                                         captchaImg ? (
                                             <img src={captchaImg} alt="验证码" onClick={fetchCaptcha}
@@ -317,12 +326,18 @@ export default function LoginPage() {
                             )}
                         </div>
 
-                        {!isRegister && (
+                        {authMode === 'login' && (
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', marginTop: '-0.2rem' }}>
                                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: '#475569', fontSize: '0.85rem' }}>
                                     <input type="checkbox" style={{ accentColor: 'var(--landing-primary)', width: '14px', height: '14px' }} /> 保持登录
                                 </label>
-                                <a href="#" style={{ color: 'var(--landing-primary)', textDecoration: 'none', fontWeight: 600, fontSize: '0.85rem' }}>忘记密码？</a>
+                                <a href="#" onClick={(e) => {
+                                    e.preventDefault();
+                                    setAuthMode('forgot');
+                                    setGlobalError('');
+                                    setFieldErrors({username:'', password:'', confirmPassword:'', email:'', emailCode:'', captchaCode:''});
+                                    setFormData({username:'', password:'', confirmPassword:'', email:'', emailCode:'', captchaCode:''});
+                                }} style={{ color: 'var(--landing-primary)', textDecoration: 'none', fontWeight: 600, fontSize: '0.85rem' }}>忘记密码？</a>
                             </div>
                         )}
 
@@ -331,19 +346,19 @@ export default function LoginPage() {
                             color: 'white', border: 'none', borderRadius: '10px', fontSize: '1.05rem', fontWeight: 600, cursor: 'pointer',
                             transition: 'all 0.3s', boxShadow: '0 8px 15px rgba(79, 70, 229, 0.2)', opacity: loading ? 0.7 : 1, marginTop: '0.5rem'
                         }}>
-                            {loading ? <i className="fas fa-spinner fa-spin"></i> : (isRegister ? '立 即 注 册' : '安全登录')}
+                            {loading ? <i className="fas fa-spinner fa-spin"></i> : (authMode === 'login' ? '安全登录' : (authMode === 'register' ? '立 即 注 册' : '确 认 重 置'))}
                         </button>
 
                         <div style={{ textAlign: 'center', marginTop: '1.2rem', color: '#64748b', fontSize: '0.9rem' }}>
-                            {isRegister ? '已有账号？' : '还没有账号？'}
+                            {authMode === 'login' ? '还没有账号？' : '已有账号？'}
                             <a href="#" onClick={(e) => {
                                 e.preventDefault();
-                                setIsRegister(!isRegister);
+                                setAuthMode(authMode === 'login' ? 'register' : 'login');
                                 setGlobalError('');
                                 setFieldErrors({username:'', password:'', confirmPassword:'', email:'', emailCode:'', captchaCode:''});
                                 setFormData({username:'', password:'', confirmPassword:'', email:'', emailCode:'', captchaCode:''});
                             }} style={{ color: 'var(--landing-primary)', fontWeight: 700, marginLeft: '6px', textDecoration: 'none' }}>
-                                {isRegister ? '返回登录' : '免费注册'}
+                                {authMode === 'login' ? '免费注册' : '返回登录'}
                             </a>
                         </div>
                     </form>

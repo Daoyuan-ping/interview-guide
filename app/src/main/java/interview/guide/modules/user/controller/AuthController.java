@@ -7,6 +7,7 @@ package interview.guide.modules.user.controller;
  */
 
 
+import interview.guide.modules.user.model.AuthDTO;
 import interview.guide.modules.user.model.AuthDTO.AuthRequest;
 import interview.guide.modules.user.model.AuthDTO.AuthResponse;
 import interview.guide.modules.user.service.UserService;
@@ -29,5 +30,10 @@ public class AuthController {
     @PostMapping("/login")
     public AuthResponse login(@RequestBody AuthRequest request) {
         return userService.login(request);
+    }
+    // 2. 在 AuthController.java 中新增接口：
+    @PostMapping("/reset-password")
+    public void resetPassword(@RequestBody AuthDTO.ResetPasswordRequest request) {
+        userService.resetPassword(request.email(), request.emailCode(), request.newPassword());
     }
 }

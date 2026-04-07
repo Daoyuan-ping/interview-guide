@@ -16,8 +16,10 @@ public class AuthDTO {
             String captchaKey,     // 图形验证码标识
             String captchaCode     // 图形验证码值
     ) {}
+    public record ResetPasswordRequest(String email, String emailCode, String newPassword) {}
 
     public record AuthResponse(String token, Long userId, String username, String role) {}
 
     public record CaptchaResponse(String captchaKey, String captchaBase64) {}
+
 }

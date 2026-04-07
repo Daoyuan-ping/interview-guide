@@ -134,4 +134,23 @@ public class UserService {
         user.setPassword(encryptPassword(newPassword));
         userRepository.save(user);
     }
+//增加重置密码的核心业务逻辑。
+    public void resetPassword(String email, String emailCode, String newPassword) {
+        // 1. 校验邮箱验证码
+        String cachedEmailCode = redisService.get("EMAIL_CODE:" + email);
+        if (cachedEmailCode == null || !cachedEmailCode.equals(emailCode)) {
+            throw new RuntimeException("邮箱验证码错误或已过期");
+        }
+
+        // 2. 查找用户是否存在
+        UserEntity user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("该邮箱尚未注册账号"));
+
+        // 3. 更新密码并保存
+        user.setPassword(encryptPassword(newPassword));
+        userRepository.save(user);
+
+        // 4. 修改成功后销毁验证码，防止重复使用
+        redisService.delete("EMAIL_CODE:" + email);
+    }
 }

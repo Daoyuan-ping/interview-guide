@@ -36,5 +36,9 @@ export const authApi = {
     sendEmailCode: async (data: { email: string, captchaKey: string, captchaCode: string }) => {
         const res = await request.post('/api/verify/send-email', data);
         return res.data;
+    },
+    resetPassword: async (data: { email: string, emailCode: string, newPassword: string }) => {
+        const res = await request.post('/api/auth/reset-password', data);
+        return res.data;
     }
 };
