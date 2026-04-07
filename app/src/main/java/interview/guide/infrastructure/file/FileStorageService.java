@@ -40,6 +40,13 @@ public class FileStorageService {
     }
 
     /**
+     * 上传头像文件
+     */
+    public String uploadAvatar(MultipartFile file) {
+        return uploadFile(file, "avatars");
+    }
+
+    /**
      * 删除简历文件
      */
     public void deleteResume(String fileKey) {
@@ -148,7 +155,7 @@ public class FileStorageService {
     /**
      * 通用文件删除方法
      */
-    private void deleteFile(String fileKey) {
+    public void deleteFile(String fileKey) {
         // 空键直接跳过
         if (fileKey == null || fileKey.isEmpty()) {
             log.debug("文件键为空，跳过删除");
