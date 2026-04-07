@@ -29,7 +29,7 @@ public class InterviewController {
     private final InterviewSessionService sessionService;
     private final InterviewHistoryService historyService;
     private final InterviewPersistenceService persistenceService;
-    
+    private final InterviewHistoryService interviewHistoryService;
     /**
      * 创建面试会话
      */
@@ -156,5 +156,9 @@ public class InterviewController {
         log.info("删除面试会话: {}", sessionId);
         persistenceService.deleteSessionBySessionId(sessionId);
         return Result.success(null);
+    }
+    @GetMapping("/api/interview/stats")
+    public Result<DashboardStatsDTO> getDashboardStats(@RequestParam Long userId) {
+        return Result.success(historyService.getDashboardStats(userId));
     }
 }

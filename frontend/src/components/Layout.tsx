@@ -13,10 +13,12 @@ import {
     Users,
     User,
     LogOut,
-    Settings
+    Settings,
+    PieChart
 } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import UserProfileModal from './UserProfileModal';
+import { getUserInfo } from '../api/user'; // 👈 引入获取用户信息的API
 
 interface NavItem {
     id: string;
@@ -42,16 +44,32 @@ export default function Layout() {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
     const [avatarUrl, setAvatarUrl] = useState<string | null>(localStorage.getItem('userAvatar'));
-    const username = localStorage.getItem('username') || 'User';
 
-    // 监听头像更新事件，以便在弹窗里传完头像后立即更新右上角
+    // 解析用户信息获取 userId 和 username
+    const aiUserStr = localStorage.getItem('ai_user');
+    const aiUser = aiUserStr ? JSON.parse(aiUserStr) : null;
+    const username = aiUser?.username || localStorage.getItem('username') || 'User';
+
+    // 增强版：处理头像的拉取和监听
     useEffect(() => {
+        // 1. 每次进入/刷新页面时，主动拉取一次最新头像
+        if (aiUser?.userId) {
+            getUserInfo(aiUser.userId).then((res: any) => {
+                const data = res.data || res;
+                if (data && data.avatarUrl) {
+                    setAvatarUrl(data.avatarUrl);
+                    localStorage.setItem('userAvatar', data.avatarUrl); // 同步到本地缓存
+                }
+            }).catch(err => console.error("获取右上角头像失败", err));
+        }
+
+        // 2. 监听在 UserProfileModal 中上传完头像触发的自定义事件
         const handleAvatarUpdate = () => {
             setAvatarUrl(localStorage.getItem('userAvatar'));
         };
         window.addEventListener('avatarUpdated', handleAvatarUpdate);
         return () => window.removeEventListener('avatarUpdated', handleAvatarUpdate);
-    }, []);
+    }, [aiUser?.userId]);
 
     const handleLogout = () => {
         localStorage.clear();
@@ -68,6 +86,7 @@ export default function Layout() {
                 { id: 'upload', path: '/upload', label: '上传简历', icon: Upload, description: 'AI 分析简历' },
                 { id: 'resumes', path: '/history', label: '简历库', icon: FileStack, description: '管理所有简历' },
                 { id: 'interviews', path: '/interviews', label: '面试记录', icon: Users, description: '查看面试历史' },
+                { id: 'dashboard', path: '/dashboard', label: '数据看板', icon: PieChart, description: '能力分析与统计' },
             ],
         },
         {
@@ -185,9 +204,9 @@ export default function Layout() {
                             <div key={group.id}>
                                 {/* 分组标题 */}
                                 <div className="px-3 mb-2">
-                  <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                    {group.title}
-                  </span>
+                                  <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                                    {group.title}
+                                  </span>
                                 </div>
                                 {/* 分组下的导航项 */}
                                 <div className="space-y-1">
@@ -212,13 +231,13 @@ export default function Layout() {
                                                     <item.icon className="w-5 h-5" />
                                                 </div>
                                                 <div className="flex-1 min-w-0">
-                          <span className={`text-sm block ${active ? 'font-semibold' : 'font-medium'}`}>
-                            {item.label}
-                          </span>
+                                                  <span className={`text-sm block ${active ? 'font-semibold' : 'font-medium'}`}>
+                                                    {item.label}
+                                                  </span>
                                                     {item.description && (
                                                         <span className="text-xs text-slate-400 dark:text-slate-500 truncate block">
-                              {item.description}
-                            </span>
+                                                          {item.description}
+                                                        </span>
                                                     )}
                                                 </div>
                                                 {active && (

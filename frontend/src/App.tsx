@@ -3,6 +3,7 @@ import Layout from './components/Layout';
 import { useEffect, useState, Suspense, lazy } from 'react';
 import { historyApi } from './api/history';
 import type { UploadKnowledgeBaseResponse } from './api/knowledgebase';
+import DashboardPage from "./pages/DashboardPage.tsx";
 
 // Lazy load components
 const HomePage = lazy(() => import('./pages/HomePage'));       // <--- 新增：引入首页
@@ -179,6 +180,8 @@ function App() {
 
             {/* 捕获未知路由，重定向回首页 */}
             <Route path="*" element={<Navigate to="/" replace />} />
+            {/* 👈 新增看板路由 */}
+            <Route path="dashboard" element={<DashboardPage />} />
           </Routes>
         </Suspense>
       </BrowserRouter>

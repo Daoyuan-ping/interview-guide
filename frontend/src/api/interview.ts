@@ -83,3 +83,7 @@ export const interviewApi = {
     return request.post<void>(`/api/interview/sessions/${sessionId}/complete`);
   },
 };
+
+export const getDashboardStats = (userId: string | number) => {
+  return request.get(`/api/interview/stats?userId=${userId}`);
+};
