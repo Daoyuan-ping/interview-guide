@@ -5,6 +5,8 @@ import { historyApi } from './api/history';
 import type { UploadKnowledgeBaseResponse } from './api/knowledgebase';
 
 // Lazy load components
+const HomePage = lazy(() => import('./pages/HomePage'));       // <--- 新增：引入首页
+const LoginPage = lazy(() => import('./pages/LoginPage'));     // <--- 新增：引入登录页
 const UploadPage = lazy(() => import('./pages/UploadPage'));
 const HistoryList = lazy(() => import('./pages/HistoryPage'));
 const ResumeDetailPage = lazy(() => import('./pages/ResumeDetailPage'));
@@ -16,9 +18,9 @@ const KnowledgeBaseManagePage = lazy(() => import('./pages/KnowledgeBaseManagePa
 
 // Loading component
 const Loading = () => (
-  <div className="flex items-center justify-center min-h-[50vh]">
-    <div className="w-10 h-10 border-3 border-slate-200 border-t-primary-500 rounded-full animate-spin" />
-  </div>
+    <div className="flex items-center justify-center min-h-[50vh]">
+      <div className="w-10 h-10 border-3 border-slate-200 border-t-primary-500 rounded-full animate-spin" />
+    </div>
 );
 
 // 上传页面包装器
@@ -62,11 +64,11 @@ function ResumeDetailWrapper() {
   };
 
   return (
-    <ResumeDetailPage
-      resumeId={parseInt(resumeId, 10)}
-      onBack={handleBack}
-      onStartInterview={handleStartInterview}
-    />
+      <ResumeDetailPage
+          resumeId={parseInt(resumeId, 10)}
+          onBack={handleBack}
+          onStartInterview={handleStartInterview}
+      />
   );
 }
 
@@ -87,14 +89,14 @@ function InterviewWrapper() {
     } else if (resumeId) {
       // 如果没有，从API获取简历详情
       historyApi.getResumeDetail(parseInt(resumeId, 10))
-        .then(resume => {
-          setResumeText(resume.resumeText);
-          setLoading(false);
-        })
-        .catch(err => {
-          console.error('获取简历文本失败', err);
-          setLoading(false);
-        });
+          .then(resume => {
+            setResumeText(resume.resumeText);
+            setLoading(false);
+          })
+          .catch(err => {
+            console.error('获取简历文本失败', err);
+            setLoading(false);
+          });
     } else {
       setLoading(false);
     }
@@ -116,61 +118,70 @@ function InterviewWrapper() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="w-10 h-10 border-3 border-slate-200 border-t-primary-500 rounded-full mx-auto mb-4 animate-spin" />
-          <p className="text-slate-500">加载中...</p>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="w-10 h-10 border-3 border-slate-200 border-t-primary-500 rounded-full mx-auto mb-4 animate-spin" />
+            <p className="text-slate-500">加载中...</p>
+          </div>
         </div>
-      </div>
     );
   }
 
   return (
-    <Interview
-      resumeText={resumeText}
-      resumeId={parseInt(resumeId, 10)}
-      onBack={handleBack}
-      onInterviewComplete={handleInterviewComplete}
-    />
+      <Interview
+          resumeText={resumeText}
+          resumeId={parseInt(resumeId, 10)}
+          onBack={handleBack}
+          onInterviewComplete={handleInterviewComplete}
+      />
   );
 }
 
 function App() {
   return (
-    <BrowserRouter>
-      <Suspense fallback={<Loading />}>
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            {/* 默认重定向到上传页面 */}
-            <Route index element={<Navigate to="/upload" replace />} />
+      <BrowserRouter>
+        <Suspense fallback={<Loading />}>
+          <Routes>
+            {/* ======================================================= */}
+            {/* 1. 独立页面区（没有左侧边栏 Layout 的包裹） */}
+            {/* ======================================================= */}
+            <Route path="/" element={<HomePage />} />          {/* 启动默认就是 HomePage */}
+            <Route path="/login" element={<LoginPage />} />
 
-            {/* 上传页面 */}
-            <Route path="upload" element={<UploadPageWrapper />} />
+            {/* ======================================================= */}
+            {/* 2. 系统内部区（被 Layout 侧边栏包裹） */}
+            {/* ======================================================= */}
+            <Route element={<Layout />}>
+              {/* 上传页面 */}
+              <Route path="/upload" element={<UploadPageWrapper />} />
 
-            {/* 历史记录列表（简历库） */}
-            <Route path="history" element={<HistoryListWrapper />} />
+              {/* 历史记录列表（简历库） */}
+              <Route path="/history" element={<HistoryListWrapper />} />
 
-            {/* 简历详情 */}
-            <Route path="history/:resumeId" element={<ResumeDetailWrapper />} />
+              {/* 简历详情 */}
+              <Route path="/history/:resumeId" element={<ResumeDetailWrapper />} />
 
-            {/* 面试记录列表 */}
-            <Route path="interviews" element={<InterviewHistoryWrapper />} />
+              {/* 面试记录列表 */}
+              <Route path="/interviews" element={<InterviewHistoryWrapper />} />
 
-            {/* 模拟面试 */}
-            <Route path="interview/:resumeId" element={<InterviewWrapper />} />
+              {/* 模拟面试 */}
+              <Route path="/interview/:resumeId" element={<InterviewWrapper />} />
 
-            {/* 知识库管理 */}
-            <Route path="knowledgebase" element={<KnowledgeBaseManagePageWrapper />} />
+              {/* 知识库管理 */}
+              <Route path="/knowledgebase" element={<KnowledgeBaseManagePageWrapper />} />
 
-            {/* 知识库上传 */}
-            <Route path="knowledgebase/upload" element={<KnowledgeBaseUploadPageWrapper />} />
+              {/* 知识库上传 */}
+              <Route path="/knowledgebase/upload" element={<KnowledgeBaseUploadPageWrapper />} />
 
-            {/* 问答助手（知识库聊天） */}
-            <Route path="knowledgebase/chat" element={<KnowledgeBaseQueryPageWrapper />} />
-          </Route>
-        </Routes>
-      </Suspense>
-    </BrowserRouter>
+              {/* 问答助手（知识库聊天） */}
+              <Route path="/knowledgebase/chat" element={<KnowledgeBaseQueryPageWrapper />} />
+            </Route>
+
+            {/* 捕获未知路由，重定向回首页 */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
+      </BrowserRouter>
   );
 }
 
