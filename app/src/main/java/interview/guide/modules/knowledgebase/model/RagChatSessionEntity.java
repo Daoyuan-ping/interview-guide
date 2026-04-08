@@ -65,6 +65,10 @@ public class RagChatSessionEntity {
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @Setter
+    @Getter
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
     /**
      * 更新时间（最后一次消息时间）
      */
@@ -123,4 +127,5 @@ public class RagChatSessionEntity {
             .map(KnowledgeBaseEntity::getId)
             .toList();
     }
+
 }

@@ -2,6 +2,16 @@ import { request, getErrorMessage } from './request';
 
 const API_BASE_URL = import.meta.env.PROD ? '' : 'http://localhost:8080';
 
+// 💡 提取获取当前用户 ID 的辅助方法
+const getUserId = () => {
+  try {
+    const userStr = localStorage.getItem('ai_user');
+    return userStr ? JSON.parse(userStr).userId : '';
+  } catch (e) {
+    return '';
+  }
+};
+
 // ========== 类型定义 ==========
 
 export interface RagChatSession {
@@ -55,7 +65,8 @@ export const ragChatApi = {
    * 创建新会话
    */
   async createSession(knowledgeBaseIds: number[], title?: string): Promise<RagChatSession> {
-    return request.post<RagChatSession>('/api/rag-chat/sessions', {
+    // 💡 追加 userId
+    return request.post<RagChatSession>(`/api/rag-chat/sessions?userId=${getUserId()}`, {
       knowledgeBaseIds,
       title,
     });
@@ -65,28 +76,32 @@ export const ragChatApi = {
    * 获取会话列表
    */
   async listSessions(): Promise<RagChatSessionListItem[]> {
-    return request.get<RagChatSessionListItem[]>('/api/rag-chat/sessions');
+    // 💡 追加 userId
+    return request.get<RagChatSessionListItem[]>(`/api/rag-chat/sessions?userId=${getUserId()}`);
   },
 
   /**
    * 获取会话详情
    */
   async getSessionDetail(sessionId: number): Promise<RagChatSessionDetail> {
-    return request.get<RagChatSessionDetail>(`/api/rag-chat/sessions/${sessionId}`);
+    // 💡 追加 userId
+    return request.get<RagChatSessionDetail>(`/api/rag-chat/sessions/${sessionId}?userId=${getUserId()}`);
   },
 
   /**
    * 更新会话标题
    */
   async updateSessionTitle(sessionId: number, title: string): Promise<void> {
-    return request.put(`/api/rag-chat/sessions/${sessionId}/title`, { title });
+    // 💡 追加 userId
+    return request.put(`/api/rag-chat/sessions/${sessionId}/title?userId=${getUserId()}`, { title });
   },
 
   /**
    * 更新会话知识库
    */
   async updateKnowledgeBases(sessionId: number, knowledgeBaseIds: number[]): Promise<void> {
-    return request.put(`/api/rag-chat/sessions/${sessionId}/knowledge-bases`, {
+    // 💡 追加 userId
+    return request.put(`/api/rag-chat/sessions/${sessionId}/knowledge-bases?userId=${getUserId()}`, {
       knowledgeBaseIds,
     });
   },
@@ -95,34 +110,38 @@ export const ragChatApi = {
    * 切换会话置顶状态
    */
   async togglePin(sessionId: number): Promise<void> {
-    return request.put(`/api/rag-chat/sessions/${sessionId}/pin`);
+    // 💡 追加 userId
+    return request.put(`/api/rag-chat/sessions/${sessionId}/pin?userId=${getUserId()}`);
   },
 
   /**
    * 删除会话
    */
   async deleteSession(sessionId: number): Promise<void> {
-    return request.delete(`/api/rag-chat/sessions/${sessionId}`);
+    // 💡 追加 userId
+    return request.delete(`/api/rag-chat/sessions/${sessionId}?userId=${getUserId()}`);
   },
 
   /**
    * 发送消息（流式SSE）
    */
   async sendMessageStream(
-    sessionId: number,
-    question: string,
-    onMessage: (chunk: string) => void,
-    onComplete: () => void,
-    onError: (error: Error) => void
+      sessionId: number,
+      question: string,
+      onMessage: (chunk: string) => void,
+      onComplete: () => void,
+      onError: (error: Error) => void
   ): Promise<void> {
     try {
+      const userId = getUserId();
+      // 💡 fetch 追加 userId 保护
       const response = await fetch(
-        `${API_BASE_URL}/api/rag-chat/sessions/${sessionId}/messages/stream`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question }),
-        }
+          `${API_BASE_URL}/api/rag-chat/sessions/${sessionId}/messages/stream${userId ? `?userId=${userId}` : ''}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ question }),
+          }
       );
 
       if (!response.ok) {
@@ -165,8 +184,8 @@ export const ragChatApi = {
 
         // 合并内容并还原转义的换行符
         return contentParts.join('')
-          .replace(/\\n/g, '\n')
-          .replace(/\\r/g, '\r');
+            .replace(/\\n/g, '\n')
+            .replace(/\\r/g, '\r');
       };
 
       while (true) {

@@ -114,6 +114,7 @@ export default function LoginPage() {
     };
 
     const handleSendEmailCode = async () => {
+        // 1. 基础字段校验
         const emailErr = validateField('email', formData.email);
         const captchaErr = validateField('captchaCode', formData.captchaCode);
 
@@ -123,13 +124,25 @@ export default function LoginPage() {
         }
 
         try {
-            await authApi.sendEmailCode({email: formData.email, captchaKey, captchaCode: formData.captchaCode});
+            // 💡 优化点：发送前对 captchaCode 进行 .trim()，防止用户误输入空格
+            const payload = {
+                email: formData.email,
+                captchaKey: captchaKey,
+                captchaCode: formData.captchaCode.trim()
+            };
+
+            await authApi.sendEmailCode(payload);
+
+            // 2. 成功反馈
             setCountdown(60);
             setGlobalError('');
             alert("验证码已发送至您的邮箱，请查收！");
         } catch (err: any) {
+            // 3. 错误处理：如果是验证码错误，后端会抛出异常，这里捕获并提示
             const errMsg = err.response?.data?.message || err.message || '发送失败';
             setFieldErrors(prev => ({...prev, captchaCode: errMsg}));
+
+            // 💡 验证码一旦失败，建议立即刷新图形验证码，防止由于 Key 已在 Redis 被销毁导致的连续报错
             fetchCaptcha();
             setFormData(prev => ({...prev, captchaCode: ''}));
         }

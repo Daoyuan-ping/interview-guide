@@ -3,6 +3,16 @@ import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.PROD ? '' : 'http://localhost:8080';
 
+// 💡 提取获取当前用户 ID 的辅助方法
+const getUserId = () => {
+  try {
+    const userStr = localStorage.getItem('ai_user');
+    return userStr ? JSON.parse(userStr).userId : '';
+  } catch (e) {
+    return '';
+  }
+};
+
 // 向量化状态
 export type VectorStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
 
@@ -20,6 +30,7 @@ export interface KnowledgeBaseItem {
   vectorStatus: VectorStatus;
   vectorError: string | null;
   chunkCount: number;
+  storageUrl?: string; // 之前加的在线预览用
 }
 
 // 统计信息
@@ -72,18 +83,25 @@ export const knowledgeBaseApi = {
     if (category) {
       formData.append('category', category);
     }
+    // 💡 注入 userId
+    const userId = getUserId();
+    if (userId) {
+      formData.append('userId', String(userId));
+    }
     return request.upload<UploadKnowledgeBaseResponse>('/api/knowledgebase/upload', formData);
   },
 
-    /**
-     * 下载知识库文件
-     */
-    async downloadKnowledgeBase(id: number): Promise<Blob> {
-        const response = await axios.get(`${API_BASE_URL}/api/knowledgebase/${id}/download`, {
-            responseType: 'blob',
-        });
-        return response.data;
-    },
+  /**
+   * 下载知识库文件
+   */
+  async downloadKnowledgeBase(id: number): Promise<Blob> {
+    // 💡 URL追加 userId
+    const userId = getUserId();
+    const response = await axios.get(`${API_BASE_URL}/api/knowledgebase/${id}/download${userId ? `?userId=${userId}` : ''}`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
 
   /**
    * 获取所有知识库列表
@@ -96,6 +114,11 @@ export const knowledgeBaseApi = {
     if (vectorStatus) {
       params.append('vectorStatus', vectorStatus);
     }
+    // 💡 注入 userId
+    const userId = getUserId();
+    if (userId) {
+      params.append('userId', String(userId));
+    }
     const queryString = params.toString();
     return request.get<KnowledgeBaseItem[]>(`/api/knowledgebase/list${queryString ? `?${queryString}` : ''}`);
   },
@@ -104,14 +127,14 @@ export const knowledgeBaseApi = {
    * 获取知识库详情
    */
   async getKnowledgeBase(id: number): Promise<KnowledgeBaseItem> {
-    return request.get<KnowledgeBaseItem>(`/api/knowledgebase/${id}`);
+    return request.get<KnowledgeBaseItem>(`/api/knowledgebase/${id}?userId=${getUserId()}`);
   },
 
   /**
    * 删除知识库
    */
   async deleteKnowledgeBase(id: number): Promise<void> {
-    return request.delete(`/api/knowledgebase/${id}`);
+    return request.delete(`/api/knowledgebase/${id}?userId=${getUserId()}`);
   },
 
   // ========== 分类管理 ==========
@@ -120,28 +143,28 @@ export const knowledgeBaseApi = {
    * 获取所有分类
    */
   async getAllCategories(): Promise<string[]> {
-    return request.get<string[]>('/api/knowledgebase/categories');
+    return request.get<string[]>(`/api/knowledgebase/categories?userId=${getUserId()}`);
   },
 
   /**
    * 根据分类获取知识库
    */
   async getByCategory(category: string): Promise<KnowledgeBaseItem[]> {
-    return request.get<KnowledgeBaseItem[]>(`/api/knowledgebase/category/${encodeURIComponent(category)}`);
+    return request.get<KnowledgeBaseItem[]>(`/api/knowledgebase/category/${encodeURIComponent(category)}?userId=${getUserId()}`);
   },
 
   /**
    * 获取未分类的知识库
    */
   async getUncategorized(): Promise<KnowledgeBaseItem[]> {
-    return request.get<KnowledgeBaseItem[]>('/api/knowledgebase/uncategorized');
+    return request.get<KnowledgeBaseItem[]>(`/api/knowledgebase/uncategorized?userId=${getUserId()}`);
   },
 
   /**
    * 更新知识库分类
    */
   async updateCategory(id: number, category: string | null): Promise<void> {
-    return request.put(`/api/knowledgebase/${id}/category`, { category });
+    return request.put(`/api/knowledgebase/${id}/category?userId=${getUserId()}`, { category });
   },
 
   // ========== 搜索 ==========
@@ -150,7 +173,7 @@ export const knowledgeBaseApi = {
    * 搜索知识库
    */
   async search(keyword: string): Promise<KnowledgeBaseItem[]> {
-    return request.get<KnowledgeBaseItem[]>(`/api/knowledgebase/search?keyword=${encodeURIComponent(keyword)}`);
+    return request.get<KnowledgeBaseItem[]>(`/api/knowledgebase/search?keyword=${encodeURIComponent(keyword)}&userId=${getUserId()}`);
   },
 
   // ========== 统计 ==========
@@ -159,7 +182,7 @@ export const knowledgeBaseApi = {
    * 获取知识库统计信息
    */
   async getStatistics(): Promise<KnowledgeBaseStats> {
-    return request.get<KnowledgeBaseStats>('/api/knowledgebase/stats');
+    return request.get<KnowledgeBaseStats>(`/api/knowledgebase/stats?userId=${getUserId()}`);
   },
 
   // ========== 向量化管理 ==========
@@ -168,14 +191,14 @@ export const knowledgeBaseApi = {
    * 重新向量化知识库（手动重试）
    */
   async revectorize(id: number): Promise<void> {
-    return request.post(`/api/knowledgebase/${id}/revectorize`);
+    return request.post(`/api/knowledgebase/${id}/revectorize?userId=${getUserId()}`);
   },
 
   /**
    * 基于知识库回答问题
    */
   async queryKnowledgeBase(req: QueryRequest): Promise<QueryResponse> {
-    return request.post<QueryResponse>('/api/knowledgebase/query', req, {
+    return request.post<QueryResponse>(`/api/knowledgebase/query?userId=${getUserId()}`, req, {
       timeout: 180000, // 3分钟超时
     });
   },
@@ -185,13 +208,15 @@ export const knowledgeBaseApi = {
    * 注意：SSE 使用 fetch API，不走统一的 axios 封装
    */
   async queryKnowledgeBaseStream(
-    req: QueryRequest,
-    onMessage: (chunk: string) => void,
-    onComplete: () => void,
-    onError: (error: Error) => void
+      req: QueryRequest,
+      onMessage: (chunk: string) => void,
+      onComplete: () => void,
+      onError: (error: Error) => void
   ): Promise<void> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/knowledgebase/query/stream`, {
+      const userId = getUserId();
+      // 💡 在 fetch 路径中追加 userId
+      const response = await fetch(`${API_BASE_URL}/api/knowledgebase/query/stream${userId ? `?userId=${userId}` : ''}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -227,7 +252,6 @@ export const knowledgeBaseApi = {
         }
         let content = line.substring(5); // 移除 "data:" 前缀
         // SSE 标准：如果 data: 后第一个字符是空格，这是协议层面的空格，应该移除
-        // 但这是可选的，有些实现可能没有这个空格
         if (content.startsWith(' ')) {
           content = content.substring(1);
         }
@@ -257,20 +281,15 @@ export const knowledgeBaseApi = {
         buffer += decoder.decode(value, { stream: true });
 
         // 按行分割处理 SSE 格式
-        // SSE 格式：data: content\n 或 data:content\n，空行 \n\n 表示事件结束
         const lines = buffer.split('\n');
-        // 保留最后一行（可能不完整，等待更多数据）
         buffer = lines.pop() || '';
 
         // 处理完整的行
         for (const line of lines) {
           const content = extractContent(line);
           if (content !== null) {
-            // 发送内容（保留所有格式，包括空格、换行等，因为 Markdown 需要）
             onMessage(content);
           }
-          // 空行（line === ''）在 SSE 中表示事件结束，但我们不需要特殊处理
-          // 因为每个 data: 行已经是一个完整的数据块
         }
       }
     } catch (error) {

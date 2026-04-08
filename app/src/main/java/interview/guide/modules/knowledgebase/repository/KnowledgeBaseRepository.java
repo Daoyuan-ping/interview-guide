@@ -1,7 +1,6 @@
 package interview.guide.modules.knowledgebase.repository;
 
 import interview.guide.modules.knowledgebase.model.KnowledgeBaseEntity;
-import interview.guide.modules.knowledgebase.model.VectorStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -11,97 +10,30 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * 知识库Repository
- */
 @Repository
 public interface KnowledgeBaseRepository extends JpaRepository<KnowledgeBaseEntity, Long> {
 
-    /**
-     * 根据文件哈希查找知识库（用于去重）
-     */
-    Optional<KnowledgeBaseEntity> findByFileHash(String fileHash);
+    // 💡 1. 用户级去重查询
+    Optional<KnowledgeBaseEntity> findByFileHashAndUserId(String fileHash, Long userId);
 
-    /**
-     * 检查文件哈希是否存在
-     */
-    boolean existsByFileHash(String fileHash);
+    // 💡 2. 获取该用户的全部知识库
+    List<KnowledgeBaseEntity> findByUserId(Long userId);
 
-    /**
-     * 按上传时间倒序查找所有知识库
-     */
-    List<KnowledgeBaseEntity> findAllByOrderByUploadedAtDesc();
+    // 💡 3. 获取该用户的知识库数量
+    long countByUserId(Long userId);
 
-    /**
-     * 获取所有不同的分类
-     */
-    @Query("SELECT DISTINCT k.category FROM KnowledgeBaseEntity k WHERE k.category IS NOT NULL ORDER BY k.category")
-    List<String> findAllCategories();
+    // 💡 4. 关键词搜索该用户的知识库
+    List<KnowledgeBaseEntity> findByUserIdAndNameContainingIgnoreCase(Long userId, String keyword);
 
-    /**
-     * 根据分类查找知识库
-     */
-    List<KnowledgeBaseEntity> findByCategoryOrderByUploadedAtDesc(String category);
+    // 💡 5. 按分类查询该用户的知识库
+    List<KnowledgeBaseEntity> findByUserIdAndCategory(Long userId, String category);
 
-    /**
-     * 查找未分类的知识库
-     */
-    List<KnowledgeBaseEntity> findByCategoryIsNullOrderByUploadedAtDesc();
-
-    /**
-     * 按名称或文件名模糊搜索（不区分大小写）
-     */
-    @Query("SELECT k FROM KnowledgeBaseEntity k WHERE LOWER(k.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(k.originalFilename) LIKE LOWER(CONCAT('%', :keyword, '%')) ORDER BY k.uploadedAt DESC")
-    List<KnowledgeBaseEntity> searchByKeyword(@Param("keyword") String keyword);
-
-    /**
-     * 按文件大小排序
-     */
-    List<KnowledgeBaseEntity> findAllByOrderByFileSizeDesc();
-
-    /**
-     * 按访问次数排序
-     */
-    List<KnowledgeBaseEntity> findAllByOrderByAccessCountDesc();
-
-    /**
-     * 按提问次数排序
-     */
-    List<KnowledgeBaseEntity> findAllByOrderByQuestionCountDesc();
-
-    // ==================== 批量更新 ====================
-
-    /**
-     * 批量增加知识库提问计数
-     * @param ids 知识库ID列表
-     * @return 更新的行数
-     */
+    // 💡 6. 获取该用户用过的所有分类（去重）
+    @Query("SELECT DISTINCT k.category FROM KnowledgeBaseEntity k WHERE k.userId = :userId AND k.category IS NOT NULL")
+    List<String> findDistinctCategoriesByUserId(@Param("userId") Long userId);
+    // 💡 补充批量更新计数的方法，并加上 userId 隔离保护
     @Modifying
-    @Query("UPDATE KnowledgeBaseEntity k SET k.questionCount = k.questionCount + 1 WHERE k.id IN :ids")
-    int incrementQuestionCountBatch(@Param("ids") List<Long> ids);
-
-    // ==================== 统计查询 ====================
-
-    /**
-     * 统计总提问次数
-     */
-    @Query("SELECT COALESCE(SUM(k.questionCount), 0) FROM KnowledgeBaseEntity k")
-    long sumQuestionCount();
-
-    /**
-     * 统计总访问次数
-     */
-    @Query("SELECT COALESCE(SUM(k.accessCount), 0) FROM KnowledgeBaseEntity k")
-    long sumAccessCount();
-
-    /**
-     * 按向量化状态统计数量
-     */
-    long countByVectorStatus(VectorStatus vectorStatus);
-
-    /**
-     * 按向量化状态查找知识库（按上传时间倒序）
-     */
-    List<KnowledgeBaseEntity> findByVectorStatusOrderByUploadedAtDesc(VectorStatus vectorStatus);
+    @Query("UPDATE KnowledgeBaseEntity k SET k.questionCount = COALESCE(k.questionCount, 0) + 1, k.lastAccessedAt = CURRENT_TIMESTAMP WHERE k.id IN :ids AND k.userId = :userId")
+    int incrementQuestionCountBatch(@org.springframework.data.repository.query.Param("ids") List<Long> ids,
+                                    @org.springframework.data.repository.query.Param("userId") Long userId);
 }
-

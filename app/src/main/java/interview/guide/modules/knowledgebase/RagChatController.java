@@ -1,5 +1,7 @@
 package interview.guide.modules.knowledgebase;
 
+import interview.guide.common.exception.BusinessException;
+import interview.guide.common.exception.ErrorCode;
 import interview.guide.common.result.Result;
 import interview.guide.modules.knowledgebase.model.RagChatDTO.*;
 import interview.guide.modules.knowledgebase.service.RagChatSessionService;
@@ -24,19 +26,31 @@ public class RagChatController {
     private final RagChatSessionService sessionService;
 
     /**
+     * 💡 校验用户是否登录的通用私有方法
+     */
+    private void checkUser(Long userId) {
+        if (userId == null) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "用户未登录或会话已过期");
+        }
+    }
+
+    /**
      * 创建新会话
      */
     @PostMapping("/api/rag-chat/sessions")
-    public Result<SessionDTO> createSession(@Valid @RequestBody CreateSessionRequest request) {
-        return Result.success(sessionService.createSession(request));
+    public Result<SessionDTO> createSession(@Valid @RequestBody CreateSessionRequest request,
+                                            @RequestParam(required = false) Long userId) { // 💡 接收 userId
+        checkUser(userId);
+        return Result.success(sessionService.createSession(request, userId)); // 💡 传入 userId
     }
 
     /**
      * 获取会话列表
      */
     @GetMapping("/api/rag-chat/sessions")
-    public Result<List<SessionListItemDTO>> listSessions() {
-        return Result.success(sessionService.listSessions());
+    public Result<List<SessionListItemDTO>> listSessions(@RequestParam(required = false) Long userId) {
+        checkUser(userId);
+        return Result.success(sessionService.listSessions(userId));
     }
 
     /**
@@ -44,8 +58,10 @@ public class RagChatController {
      * GET /api/rag-chat/sessions/{sessionId}
      */
     @GetMapping("/api/rag-chat/sessions/{sessionId}")
-    public Result<SessionDetailDTO> getSessionDetail(@PathVariable Long sessionId) {
-        return Result.success(sessionService.getSessionDetail(sessionId));
+    public Result<SessionDetailDTO> getSessionDetail(@PathVariable Long sessionId,
+                                                     @RequestParam(required = false) Long userId) {
+        checkUser(userId);
+        return Result.success(sessionService.getSessionDetail(sessionId, userId));
     }
 
     /**
@@ -54,8 +70,10 @@ public class RagChatController {
     @PutMapping("/api/rag-chat/sessions/{sessionId}/title")
     public Result<Void> updateSessionTitle(
             @PathVariable Long sessionId,
-            @Valid @RequestBody UpdateTitleRequest request) {
-        sessionService.updateSessionTitle(sessionId, request.title());
+            @Valid @RequestBody UpdateTitleRequest request,
+            @RequestParam(required = false) Long userId) {
+        checkUser(userId);
+        sessionService.updateSessionTitle(sessionId, request.title(), userId);
         return Result.success(null);
     }
 
@@ -64,8 +82,10 @@ public class RagChatController {
      * PUT /api/rag-chat/sessions/{sessionId}/pin
      */
     @PutMapping("/api/rag-chat/sessions/{sessionId}/pin")
-    public Result<Void> togglePin(@PathVariable Long sessionId) {
-        sessionService.togglePin(sessionId);
+    public Result<Void> togglePin(@PathVariable Long sessionId,
+                                  @RequestParam(required = false) Long userId) {
+        checkUser(userId);
+        sessionService.togglePin(sessionId, userId);
         return Result.success(null);
     }
 
@@ -75,8 +95,10 @@ public class RagChatController {
     @PutMapping("/api/rag-chat/sessions/{sessionId}/knowledge-bases")
     public Result<Void> updateSessionKnowledgeBases(
             @PathVariable Long sessionId,
-            @Valid @RequestBody UpdateKnowledgeBasesRequest request) {
-        sessionService.updateSessionKnowledgeBases(sessionId, request.knowledgeBaseIds());
+            @Valid @RequestBody UpdateKnowledgeBasesRequest request,
+            @RequestParam(required = false) Long userId) {
+        checkUser(userId);
+        sessionService.updateSessionKnowledgeBases(sessionId, request.knowledgeBaseIds(), userId);
         return Result.success(null);
     }
 
@@ -85,8 +107,10 @@ public class RagChatController {
      * DELETE /api/rag-chat/sessions/{sessionId}
      */
     @DeleteMapping("/api/rag-chat/sessions/{sessionId}")
-    public Result<Void> deleteSession(@PathVariable Long sessionId) {
-        sessionService.deleteSession(sessionId);
+    public Result<Void> deleteSession(@PathVariable Long sessionId,
+                                      @RequestParam(required = false) Long userId) {
+        checkUser(userId);
+        sessionService.deleteSession(sessionId, userId);
         return Result.success(null);
     }
 
@@ -98,38 +122,42 @@ public class RagChatController {
      * 3. 流式完成后通过回调更新消息
      */
     @PostMapping(value = "/api/rag-chat/sessions/{sessionId}/messages/stream",
-                 produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+            produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> sendMessageStream(
             @PathVariable Long sessionId,
-            @Valid @RequestBody SendMessageRequest request) {
+            @Valid @RequestBody SendMessageRequest request,
+            @RequestParam(required = false) Long userId) { // 💡 接收 userId
 
-        log.info("收到 RAG 聊天流式请求: sessionId={}, question={}, 线程: {} (虚拟线程: {})",
-            sessionId, request.question(), Thread.currentThread(), Thread.currentThread().isVirtual());
+        checkUser(userId);
 
-        // 1. 准备消息（保存用户消息，创建 AI 消息占位）
-        Long messageId = sessionService.prepareStreamMessage(sessionId, request.question());
+        log.info("收到 RAG 聊天流式请求: sessionId={}, question={}, userId={}, 线程: {} (虚拟线程: {})",
+                sessionId, request.question(), userId, Thread.currentThread(), Thread.currentThread().isVirtual());
+
+        // 1. 准备消息（保存用户消息，创建 AI 消息占位，校验越权）
+        Long messageId = sessionService.prepareStreamMessage(sessionId, request.question(), userId);
 
         // 2. 获取流式响应
         StringBuilder fullContent = new StringBuilder();
 
-        return sessionService.getStreamAnswer(sessionId, request.question())
-            .doOnNext(fullContent::append)
-            // 使用 ServerSentEvent 包装，转义换行符避免破坏 SSE 格式
-            .map(chunk -> ServerSentEvent.<String>builder()
-                .data(chunk.replace("\n", "\\n").replace("\r", "\\r"))
-                .build())
-            .doOnComplete(() -> {
-                // 3. 流式完成后更新消息内容
-                sessionService.completeStreamMessage(messageId, fullContent.toString());
-                log.info("RAG 聊天流式完成: sessionId={}, messageId={}", sessionId, messageId);
-            })
-            .doOnError(e -> {
-                // 错误时也保存已接收的内容
-                String content = !fullContent.isEmpty()
-                    ? fullContent.toString()
-                    : "【错误】回答生成失败：" + e.getMessage();
-                sessionService.completeStreamMessage(messageId, content);
-                log.error("RAG 聊天流式错误: sessionId={}", sessionId, e);
-            });
+        // 💡 传入 userId 给大模型流式调用做终极拦截验证
+        return sessionService.getStreamAnswer(sessionId, request.question(), userId)
+                .doOnNext(fullContent::append)
+                // 使用 ServerSentEvent 包装，转义换行符避免破坏 SSE 格式
+                .map(chunk -> ServerSentEvent.<String>builder()
+                        .data(chunk.replace("\n", "\\n").replace("\r", "\\r"))
+                        .build())
+                .doOnComplete(() -> {
+                    // 3. 流式完成后更新消息内容
+                    sessionService.completeStreamMessage(messageId, fullContent.toString());
+                    log.info("RAG 聊天流式完成: sessionId={}, messageId={}", sessionId, messageId);
+                })
+                .doOnError(e -> {
+                    // 错误时也保存已接收的内容
+                    String content = !fullContent.isEmpty()
+                            ? fullContent.toString()
+                            : "【错误】回答生成失败：" + e.getMessage();
+                    sessionService.completeStreamMessage(messageId, content);
+                    log.error("RAG 聊天流式错误: sessionId={}", sessionId, e);
+                });
     }
 }
