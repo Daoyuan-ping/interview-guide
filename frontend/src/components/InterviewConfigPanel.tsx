@@ -32,7 +32,7 @@ export default function InterviewConfigPanel({
                                                  onBack,
                                                  error
                                              }: InterviewConfigPanelProps) {
-    const questionCounts = [6, 8, 10, 12, 15];
+    const questionCounts = [3, 5, 7, 9, 12];
 
     // 知识库状态
     const [knowledgeBases, setKnowledgeBases] = useState<any[]>([]);
