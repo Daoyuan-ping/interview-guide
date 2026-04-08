@@ -35,6 +35,7 @@ public class UserService {
         String salt = "ai-interview-2026-";
         return DigestUtils.md5DigestAsHex((salt + password).getBytes(StandardCharsets.UTF_8));
     }
+
     public AuthResponse register(AuthRequest request) {
         // 1. 校验邮箱验证码
         String cachedEmailCode = redisService.get("EMAIL_CODE:" + request.email());
@@ -75,6 +76,7 @@ public class UserService {
         );
     }
 
+    // ================= 前台用户登录 =================
     public AuthResponse login(AuthRequest request) {
         UserEntity user = userRepository.findByUsername(request.username())
                 .orElseThrow(() -> new RuntimeException("用户名或密码错误"));
@@ -82,6 +84,11 @@ public class UserService {
         if (!user.getPassword().equals(encryptPassword(request.password()))) {
             throw new RuntimeException("用户名或密码错误");
         }
+
+        // 💡 新增拦截：防止管理员登录前台
+     /*   if ("ADMIN".equals(user.getRole())) {
+            throw new RuntimeException("管理员账号请前往后台管理系统登录");
+        }*/
 
         if ("BANNED".equals(user.getStatus())) {
             throw new RuntimeException("您的账号已被封禁，请联系管理员");
@@ -96,6 +103,34 @@ public class UserService {
         String token = UUID.randomUUID().toString().replace("-", "");
 
         // 💡 确保你的 AuthResponse 构造函数支持传 avatarUrl
+        return new AuthResponse(token, user.getId(), user.getUsername(), user.getRole(), fullAvatarUrl);
+    }
+
+    // ================= 后台管理员登录 =================
+    public AuthResponse adminLogin(AuthRequest request) {
+        UserEntity user = userRepository.findByUsername(request.username())
+                .orElseThrow(() -> new RuntimeException("用户名或密码错误"));
+
+        if (!user.getPassword().equals(encryptPassword(request.password()))) {
+            throw new RuntimeException("用户名或密码错误");
+        }
+
+        // 💡 新增拦截：仅允许管理员登录后台
+        if (!"ADMIN".equals(user.getRole())) {
+            throw new RuntimeException("非管理员账号，无权访问管理系统");
+        }
+
+        if ("BANNED".equals(user.getStatus())) {
+            throw new RuntimeException("您的账号已被封禁");
+        }
+
+        String fullAvatarUrl = null;
+        if (user.getAvatar() != null && !user.getAvatar().isEmpty()) {
+            fullAvatarUrl = fileStorageService.getFileUrl(user.getAvatar());
+        }
+
+        String token = UUID.randomUUID().toString().replace("-", "");
+
         return new AuthResponse(token, user.getId(), user.getUsername(), user.getRole(), fullAvatarUrl);
     }
 
@@ -198,6 +233,12 @@ public class UserService {
     public void updateUserStatus(Long userId, String status) {
         UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
+
+        // 💡 新增安全拦截：不允许任何人封禁管理员账号（从而也避免了管理员自杀式封禁）
+        if ("ADMIN".equals(user.getRole()) && "BANNED".equals(status)) {
+            throw new RuntimeException("系统安全限制：不能封禁管理员账号");
+        }
+
         user.setStatus(status);
         userRepository.save(user);
     }

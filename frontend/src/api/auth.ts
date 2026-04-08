@@ -24,6 +24,12 @@ export const authApi = {
         return res.data; // 🚨 必须加上 .data 才能拿到后端真正返回的 JSON 对象
     },
 
+    // 💡 新增：管理员专属登录接口调用
+    adminLogin: async (data: any): Promise<AuthResponse> => {
+        const res = await request.post('/api/auth/admin-login', data);
+        return res.data;
+    },
+
     register: async (data: any): Promise<AuthResponse> => {
         const res = await request.post('/api/auth/register', data);
         return res.data; // 🚨 必须加上 .data
@@ -38,6 +44,7 @@ export const authApi = {
         const res = await request.post('/api/verify/send-email', data);
         return res.data;
     },
+
     resetPassword: async (data: { email: string, emailCode: string, newPassword: string }) => {
         const res = await request.post('/api/auth/reset-password', data);
         return res.data;

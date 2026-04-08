@@ -27,10 +27,18 @@ public class AuthController {
         return userService.register(request);
     }
 
+    // 普通用户前台登录
     @PostMapping("/login")
     public AuthResponse login(@RequestBody AuthRequest request) {
         return userService.login(request);
     }
+
+    // 💡 新增：管理员后台登录专用接口
+    @PostMapping("/admin-login")
+    public AuthResponse adminLogin(@RequestBody AuthRequest request) {
+        return userService.adminLogin(request);
+    }
+
     // 2. 在 AuthController.java 中新增接口：
     @PostMapping("/reset-password")
     public void resetPassword(@RequestBody AuthDTO.ResetPasswordRequest request) {

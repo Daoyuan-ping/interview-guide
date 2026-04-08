@@ -64,6 +64,10 @@ export default function AdminUsersPage() {
         fetchUsers();
     };
 
+    // 获取当前登录的用户信息，用于判断是不是自己
+    const currentUserString = localStorage.getItem('ai_user');
+    const currentUser = currentUserString ? JSON.parse(currentUserString) : null;
+
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
@@ -131,11 +135,48 @@ export default function AdminUsersPage() {
                             </td>
                             <td className="px-6 py-4 text-right">
                                 <div className="flex justify-end gap-2">
-                                    <button onClick={() => handleResetPassword(user)} title="重置密码" className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors"><Key className="w-4 h-4"/></button>
-                                    <button onClick={() => handleToggleRole(user)} title="切换角色" className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-400 hover:text-blue-600 transition-colors"><Shield className="w-4 h-4"/></button>
-                                    <button onClick={() => handleToggleStatus(user)} title={user.status === 'BANNED' ? '解封' : '封禁'} className={`p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors ${user.status === 'BANNED' ? 'text-emerald-500' : 'text-slate-400 hover:text-red-500'}`}>
-                                        {user.status === 'BANNED' ? <CheckCircle className="w-4 h-4"/> : <Ban className="w-4 h-4"/>}
+                                    <button
+                                        onClick={() => handleResetPassword(user)}
+                                        title="重置密码"
+                                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors"
+                                    >
+                                        <Key className="w-4 h-4"/>
                                     </button>
+                                    <button
+                                        onClick={() => handleToggleRole(user)}
+                                        title="切换角色"
+                                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-400 hover:text-blue-600 transition-colors"
+                                    >
+                                        <Shield className="w-4 h-4"/>
+                                    </button>
+
+                                    {/* 💡 核心修改区：分离解封和封禁按钮的渲染，增加管理员封禁防护 */}
+                                    {user.status === 'BANNED' ? (
+                                        <button
+                                            onClick={() => handleToggleStatus(user)}
+                                            title="解封"
+                                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors text-emerald-500"
+                                        >
+                                            <CheckCircle className="w-4 h-4"/>
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={() => handleToggleStatus(user)}
+                                            disabled={user.role === 'ADMIN'}
+                                            title={
+                                                user.id === currentUser?.userId ? '您不能封禁自己的账号' :
+                                                    user.role === 'ADMIN' ? '系统限制：不能封禁管理员账号' :
+                                                        '封禁'
+                                            }
+                                            className={`p-2 rounded-lg transition-colors ${
+                                                user.role === 'ADMIN'
+                                                    ? 'text-slate-300 dark:text-slate-600 cursor-not-allowed opacity-50'
+                                                    : 'text-slate-400 hover:text-red-500 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer'
+                                            }`}
+                                        >
+                                            <Ban className="w-4 h-4"/>
+                                        </button>
+                                    )}
                                 </div>
                             </td>
                         </tr>

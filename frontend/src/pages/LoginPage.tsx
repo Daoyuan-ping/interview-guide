@@ -11,6 +11,9 @@ export default function LoginPage() {
     const isRegister = authMode === 'register';
     const isForgot = authMode === 'forgot';
 
+    // 💡 新增：管理员登录状态切换
+    const [isAdminLogin, setIsAdminLogin] = useState(false);
+
     // 表单状态
     const [formData, setFormData] = useState({
         username: '', password: '', confirmPassword: '',
@@ -138,7 +141,6 @@ export default function LoginPage() {
         let hasError = false;
         const newFieldErrors = {...fieldErrors};
 
-        // 根据不同模式决定需要校验的字段
         let fieldsToCheck: string[] = [];
         if (authMode === 'login') fieldsToCheck = ['username', 'password'];
         if (authMode === 'register') fieldsToCheck = ['username', 'email', 'captchaCode', 'emailCode', 'password', 'confirmPassword'];
@@ -179,7 +181,14 @@ export default function LoginPage() {
                 alert('密码重置成功，请使用新密码重新登录！');
                 setAuthMode('login'); // 找回密码成功后返回登录页
             } else {
-                const res = await authApi.login({username: formData.username, password: formData.password});
+                // 💡 重点修改：根据勾选状态调用不同接口
+                let res;
+                if (isAdminLogin) {
+                    res = await authApi.adminLogin({username: formData.username, password: formData.password});
+                } else {
+                    res = await authApi.login({username: formData.username, password: formData.password});
+                }
+
                 localStorage.setItem('ai_token', res.token);
                 localStorage.setItem('ai_user', JSON.stringify({
                     userId: res.userId,
@@ -187,11 +196,14 @@ export default function LoginPage() {
                     role: res.role,
                     avatarUrl: res.fullAvatarUrl
                 }));
-                // 💡 智能路由逻辑：根据后端返回的角色决定去哪
-                if (res.role === 'ADMIN') {
-                    navigate('/admin'); // 管理员直接进入控制台大屏
+                // 智能路由逻辑：根据后端返回的角色决定去哪
+                // 💡 智能路由逻辑修改：
+                // 只有在用户主动勾选了“管理员登录”，并且后端确认是 ADMIN 时，才跳转到后台大屏
+                // 否则（即使他是管理员，但没有勾选“管理员登录”），作为普通用户进入前台
+                if (isAdminLogin && res.role === 'ADMIN') {
+                    navigate('/admin');
                 } else {
-                    navigate('/upload'); // 普通用户进入前台
+                    navigate('/upload');
                 }
             }
         } catch (err: any) {
@@ -287,7 +299,6 @@ export default function LoginPage() {
             </div>
 
             <div className="brand-section-left">
-                {/* 品牌区代码保持不变 */}
                 <div style={{display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '3rem', zIndex: 2}}>
                     <svg style={{width: '48px', height: '48px', flexShrink: 0}} xmlns="http://www.w3.org/2000/svg"
                          viewBox="0 0 32 32" fill="none">
@@ -324,12 +335,9 @@ export default function LoginPage() {
                     zIndex: 2
                 }}>基于Qwen大模型的智能简历分析与AI面试官平台，为你提供个性化的求职准备方案，助力计算机设计大赛与春招秋招。</p>
                 <div className="brand-features-grid">
-                    <div className="brand-feature-item"><i className="fas fa-file-alt"></i> <span>智能简历解析</span>
-                    </div>
-                    <div className="brand-feature-item"><i className="fas fa-comments"></i> <span>AI模拟面试</span>
-                    </div>
-                    <div className="brand-feature-item"><i className="fas fa-chart-line"></i> <span>能力提升建议</span>
-                    </div>
+                    <div className="brand-feature-item"><i className="fas fa-file-alt"></i> <span>智能简历解析</span></div>
+                    <div className="brand-feature-item"><i className="fas fa-comments"></i> <span>AI模拟面试</span></div>
+                    <div className="brand-feature-item"><i className="fas fa-chart-line"></i> <span>能力提升建议</span></div>
                     <div className="brand-feature-item"><i className="fas fa-brain"></i> <span>大模型驱动</span></div>
                 </div>
             </div>
@@ -392,7 +400,7 @@ export default function LoginPage() {
                                 {(isRegister || isForgot) && renderInput('confirmPassword', '确认密码', 'fas fa-check-circle', 'password', '请再次确认密码')}
                             </div>
 
-                            {/* 右侧：验证安全列（仅注册和忘记密码显示） */}
+                            {/* 右侧：验证安全列 */}
                             {(isRegister || isForgot) && (
                                 <div>
                                     {authMode === 'register' && renderInput('email', '安全邮箱', 'fas fa-envelope', 'email', '请输入邮箱')}
@@ -452,39 +460,51 @@ export default function LoginPage() {
                                 marginBottom: '1.5rem',
                                 marginTop: '-0.2rem'
                             }}>
-                                <label style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '0.5rem',
-                                    cursor: 'pointer',
-                                    color: '#475569',
-                                    fontSize: '0.85rem'
-                                }}>
-                                    <input type="checkbox" style={{
-                                        accentColor: 'var(--landing-primary)',
-                                        width: '14px',
-                                        height: '14px'
-                                    }}/> 保持登录
-                                </label>
+                                {/* 💡 新增：让用户选择以普通用户还是管理员身份登录 */}
+                                <div style={{ display: 'flex', gap: '1rem' }}>
+                                    <label style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem',
+                                        cursor: 'pointer',
+                                        color: '#475569',
+                                        fontSize: '0.85rem'
+                                    }}>
+                                        <input type="checkbox" style={{
+                                            accentColor: 'var(--landing-primary)',
+                                            width: '14px',
+                                            height: '14px'
+                                        }}/> 保持登录
+                                    </label>
+                                    <label style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem',
+                                        cursor: 'pointer',
+                                        color: '#475569',
+                                        fontSize: '0.85rem'
+                                    }}>
+                                        <input type="checkbox"
+                                               checked={isAdminLogin}
+                                               onChange={(e) => setIsAdminLogin(e.target.checked)}
+                                               style={{
+                                                   accentColor: 'var(--landing-primary)',
+                                                   width: '14px',
+                                                   height: '14px'
+                                               }}/> 管理员登录
+                                    </label>
+                                </div>
                                 <a href="#" onClick={(e) => {
                                     e.preventDefault();
                                     setAuthMode('forgot');
                                     setGlobalError('');
                                     setFieldErrors({
-                                        username: '',
-                                        password: '',
-                                        confirmPassword: '',
-                                        email: '',
-                                        emailCode: '',
-                                        captchaCode: ''
+                                        username: '', password: '', confirmPassword: '',
+                                        email: '', emailCode: '', captchaCode: ''
                                     });
                                     setFormData({
-                                        username: '',
-                                        password: '',
-                                        confirmPassword: '',
-                                        email: '',
-                                        emailCode: '',
-                                        captchaCode: ''
+                                        username: '', password: '', confirmPassword: '',
+                                        email: '', emailCode: '', captchaCode: ''
                                     });
                                 }} style={{
                                     color: 'var(--landing-primary)',
@@ -521,20 +541,12 @@ export default function LoginPage() {
                                 setAuthMode(authMode === 'login' ? 'register' : 'login');
                                 setGlobalError('');
                                 setFieldErrors({
-                                    username: '',
-                                    password: '',
-                                    confirmPassword: '',
-                                    email: '',
-                                    emailCode: '',
-                                    captchaCode: ''
+                                    username: '', password: '', confirmPassword: '',
+                                    email: '', emailCode: '', captchaCode: ''
                                 });
                                 setFormData({
-                                    username: '',
-                                    password: '',
-                                    confirmPassword: '',
-                                    email: '',
-                                    emailCode: '',
-                                    captchaCode: ''
+                                    username: '', password: '', confirmPassword: '',
+                                    email: '', emailCode: '', captchaCode: ''
                                 });
                             }} style={{
                                 color: 'var(--landing-primary)',
