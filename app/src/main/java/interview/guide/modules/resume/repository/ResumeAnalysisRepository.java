@@ -3,6 +3,7 @@ package interview.guide.modules.resume.repository;
 import interview.guide.modules.resume.model.ResumeAnalysisEntity;
 import interview.guide.modules.resume.model.ResumeEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -27,4 +28,9 @@ public interface ResumeAnalysisRepository extends JpaRepository<ResumeAnalysisEn
      * 根据简历ID查找所有评测记录
      */
     List<ResumeAnalysisEntity> findByResumeIdOrderByAnalyzedAtDesc(Long resumeId);
+    /**
+     * 💡 新增：统计全平台简历分析消耗的总 Token 数
+     */
+    @Query("SELECT SUM(a.usedTokens) FROM ResumeAnalysisEntity a")
+    Long sumTotalUsedTokens();
 }

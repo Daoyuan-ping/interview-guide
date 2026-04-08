@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "resume_analyses")
 public class ResumeAnalysisEntity {
-    
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -46,105 +46,114 @@ public class ResumeAnalysisEntity {
     // 评测时间
     @Column(nullable = false)
     private LocalDateTime analyzedAt;
-    
+    @Column(columnDefinition = "INT DEFAULT 0")
+    private Integer usedTokens = 0;
+
     @PrePersist
     protected void onCreate() {
         analyzedAt = LocalDateTime.now();
     }
-    
+
     // Getters and Setters
+    public Integer getUsedTokens() {
+        return usedTokens;
+    }
+
+    public void setUsedTokens(Integer usedTokens) {
+        this.usedTokens = usedTokens;
+    }
     public Long getId() {
         return id;
     }
-    
+
     public void setId(Long id) {
         this.id = id;
     }
-    
+
     public ResumeEntity getResume() {
         return resume;
     }
-    
+
     public void setResume(ResumeEntity resume) {
         this.resume = resume;
     }
-    
+
     public Integer getOverallScore() {
         return overallScore;
     }
-    
+
     public void setOverallScore(Integer overallScore) {
         this.overallScore = overallScore;
     }
-    
+
     public Integer getContentScore() {
         return contentScore;
     }
-    
+
     public void setContentScore(Integer contentScore) {
         this.contentScore = contentScore;
     }
-    
+
     public Integer getStructureScore() {
         return structureScore;
     }
-    
+
     public void setStructureScore(Integer structureScore) {
         this.structureScore = structureScore;
     }
-    
+
     public Integer getSkillMatchScore() {
         return skillMatchScore;
     }
-    
+
     public void setSkillMatchScore(Integer skillMatchScore) {
         this.skillMatchScore = skillMatchScore;
     }
-    
+
     public Integer getExpressionScore() {
         return expressionScore;
     }
-    
+
     public void setExpressionScore(Integer expressionScore) {
         this.expressionScore = expressionScore;
     }
-    
+
     public Integer getProjectScore() {
         return projectScore;
     }
-    
+
     public void setProjectScore(Integer projectScore) {
         this.projectScore = projectScore;
     }
-    
+
     public String getSummary() {
         return summary;
     }
-    
+
     public void setSummary(String summary) {
         this.summary = summary;
     }
-    
+
     public String getStrengthsJson() {
         return strengthsJson;
     }
-    
+
     public void setStrengthsJson(String strengthsJson) {
         this.strengthsJson = strengthsJson;
     }
-    
+
     public String getSuggestionsJson() {
         return suggestionsJson;
     }
-    
+
     public void setSuggestionsJson(String suggestionsJson) {
         this.suggestionsJson = suggestionsJson;
     }
-    
+
     public LocalDateTime getAnalyzedAt() {
         return analyzedAt;
     }
-    
+
     public void setAnalyzedAt(LocalDateTime analyzedAt) {
         this.analyzedAt = analyzedAt;
     }

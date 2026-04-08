@@ -95,12 +95,11 @@ public class ResumePersistenceService {
     }
 
     /**
-     * 保存简历评测结果
+     * 保存简历评测结果 (带 Token)
      */
     @Transactional(rollbackFor = Exception.class)
-    public ResumeAnalysisEntity saveAnalysis(ResumeEntity resume, ResumeAnalysisResponse analysis) {
+    public ResumeAnalysisEntity saveAnalysis(ResumeEntity resume, ResumeAnalysisResponse analysis, int usedTokens) { // 💡 新增参数 usedTokens
         try {
-            // 使用 MapStruct 映射基础字段
             ResumeAnalysisEntity entity = resumeMapper.toAnalysisEntity(analysis);
             entity.setResume(resume);
 
@@ -108,15 +107,24 @@ public class ResumePersistenceService {
             entity.setStrengthsJson(objectMapper.writeValueAsString(analysis.strengths()));
             entity.setSuggestionsJson(objectMapper.writeValueAsString(analysis.suggestions()));
 
+            // 💡 保存 Token
+            entity.setUsedTokens(usedTokens);
+
             ResumeAnalysisEntity saved = analysisRepository.save(entity);
-            log.info("简历评测结果已保存: analysisId={}, resumeId={}, score={}",
-                    saved.getId(), resume.getId(), analysis.overallScore());
+            log.info("简历评测结果已保存: analysisId={}, resumeId={}, score={}, 消耗Token={}",
+                    saved.getId(), resume.getId(), analysis.overallScore(), usedTokens);
 
             return saved;
         } catch (JacksonException e) {
             log.error("序列化评测结果失败: {}", e.getMessage(), e);
             throw new BusinessException(ErrorCode.RESUME_ANALYSIS_FAILED, "保存评测结果失败");
         }
+    }
+
+    // 保留一个旧的用于兼容（可选）
+    @Transactional(rollbackFor = Exception.class)
+    public ResumeAnalysisEntity saveAnalysis(ResumeEntity resume, ResumeAnalysisResponse analysis) {
+        return saveAnalysis(resume, analysis, 0);
     }
 
     /**

@@ -4,14 +4,13 @@ import { motion } from 'framer-motion';
 import {
     LayoutDashboard,
     Users,
-    Settings,
+
     LogOut,
     Moon,
     Sun,
     ShieldCheck,
     // TerminalSquare,
-    Database// 👈 引入 User 图标用于回退展示
-} from 'lucide-react';
+    } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 
 export default function AdminLayout() {
@@ -65,9 +64,7 @@ export default function AdminLayout() {
     const adminNavs = [
         { id: 'dashboard', path: '/admin', label: '系统大屏', icon: LayoutDashboard },
         { id: 'users', path: '/admin/users', label: '用户管理', icon: Users },
-        // { id: 'prompts', path: '/admin/prompts', label: 'AI 提示词配置', icon: TerminalSquare },
-        { id: 'knowledge', path: '/admin/knowledge', label: '公共题库管理', icon: Database },
-        { id: 'settings', path: '/admin/settings', label: '系统设置', icon: Settings },
+
     ];
 
     return (

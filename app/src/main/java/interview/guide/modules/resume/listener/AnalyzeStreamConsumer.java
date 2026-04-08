@@ -12,7 +12,7 @@ import interview.guide.modules.resume.service.ResumePersistenceService;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.stream.StreamMessageId;
 import org.springframework.stereotype.Component;
-
+import interview.guide.common.ai.AiTokenContext;
 import java.util.Map;
 
 /**
@@ -94,14 +94,21 @@ public class AnalyzeStreamConsumer extends AbstractStreamConsumer<AnalyzeStreamC
             log.warn("简历已被删除，跳过分析任务: resumeId={}", resumeId);
             return;
         }
+        // 💡 1. 清空当前线程可能残留的 Token 数据
+        AiTokenContext.clear();
 
+        // 2. 调用 AI 分析
         ResumeAnalysisResponse analysis = gradingService.analyzeResume(payload.content());
+
+        // 💡 3. 取出消耗的 Token
+        int tokensUsed = AiTokenContext.getAndClear();
+
         ResumeEntity resume = resumeRepository.findById(resumeId).orElse(null);
         if (resume == null) {
             log.warn("简历在分析期间被删除，跳过保存结果: resumeId={}", resumeId);
             return;
         }
-        persistenceService.saveAnalysis(resume, analysis);
+        persistenceService.saveAnalysis(resume, analysis, tokensUsed);
     }
 
     @Override

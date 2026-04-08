@@ -86,6 +86,9 @@ public class InterviewSessionEntity {
     // 评估错误信息
     @Column(length = 500)
     private String evaluateError;
+    // 💡 新增字段：记录本次面试总共消耗的 Token
+    @Column(columnDefinition = "INT DEFAULT 0")
+    private Integer usedTokens = 0;
 
     public enum SessionStatus {
         CREATED,      // 会话已创建
@@ -253,4 +256,18 @@ public class InterviewSessionEntity {
     }
     public Long getUserId() { return userId; }
     public void setUserId(Long userId) { this.userId = userId; }
+    public Integer getUsedTokens() {
+        return usedTokens;
+    }
+
+    public void setUsedTokens(Integer usedTokens) {
+        this.usedTokens = usedTokens;
+    }
+
+    // 💡 辅助方法：累加 Token
+    public void addUsedTokens(Integer tokens) {
+        if (tokens != null) {
+            this.usedTokens = (this.usedTokens == null ? 0 : this.usedTokens) + tokens;
+        }
+    }
 }

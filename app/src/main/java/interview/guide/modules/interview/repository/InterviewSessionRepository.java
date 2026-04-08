@@ -60,4 +60,9 @@ public interface InterviewSessionRepository extends JpaRepository<InterviewSessi
     );
     // 获取指定时间之后的面试记录
     List<InterviewSessionEntity> findByCreatedAtAfter(java.time.LocalDateTime date);
+    /**
+     * 💡 新增：统计全平台消耗的总 Token 数
+     */
+    @Query("SELECT SUM(s.usedTokens) FROM InterviewSessionEntity s")
+    Long sumTotalUsedTokens();
 }

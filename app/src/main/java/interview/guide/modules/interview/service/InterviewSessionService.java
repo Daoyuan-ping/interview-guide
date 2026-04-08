@@ -1,5 +1,6 @@
 package interview.guide.modules.interview.service;
 
+import interview.guide.common.ai.AiTokenContext; // 💡 新增：导入 Token 上下文工具
 import interview.guide.common.exception.BusinessException;
 import interview.guide.common.exception.ErrorCode;
 import interview.guide.common.model.AsyncTaskStatus;
@@ -62,13 +63,18 @@ public class InterviewSessionService {
             historicalQuestions = persistenceService.getHistoricalQuestionsByResumeId(request.resumeId());
         }
 
-        // ================= 修改点 1：生成面试问题时，传入知识库 IDs =================
+        // ================= 💡 Token 拦截点 1：生成面试问题 =================
+        AiTokenContext.clear(); // 调用前清空当前线程可能残留的 Token 数据
+
         List<InterviewQuestionDTO> questions = questionService.generateQuestions(
                 request.resumeText(),
                 request.questionCount(),
                 historicalQuestions,
-                request.knowledgeBaseIds() // <--- 让AI从知识库中抽取真题
+                request.knowledgeBaseIds()
         );
+
+        int tokensUsed = AiTokenContext.getAndClear(); // 获取消耗的 Token
+        // =================================================================
 
         // 保存到 Redis 缓存
         sessionCache.saveSession(
@@ -83,8 +89,15 @@ public class InterviewSessionService {
         // 保存到数据库
         if (request.resumeId() != null) {
             try {
-                persistenceService.saveSession(sessionId, request.resumeId(),
-                        questions.size(), questions, request.knowledgeBaseIds());
+                // 💡 传递消耗的 Token 进行落库
+                persistenceService.saveSession(
+                        sessionId,
+                        request.resumeId(),
+                        questions.size(),
+                        questions,
+                        request.knowledgeBaseIds(),
+                        tokensUsed
+                );
             } catch (Exception e) {
                 log.warn("保存面试会话到数据库失败: {}", e.getMessage());
             }
@@ -444,7 +457,6 @@ public class InterviewSessionService {
 
         List<InterviewQuestionDTO> questions = session.getQuestions(objectMapper);
 
-        // ================= 修改点 2：在判分前，从数据库读取该场面试绑定的知识库 IDs =================
         List<Long> kbIds = null;
         try {
             Optional<InterviewSessionEntity> entityOpt = persistenceService.findBySessionId(sessionId);
@@ -458,14 +470,18 @@ public class InterviewSessionService {
             log.warn("解析 knowledgeBaseIds 失败", e);
         }
 
-        // 传入知识库 IDs 给评估服务，让它结合资料判分
+        // ================= 💡 Token 拦截点 2：生成面试判分与报告 =================
+        AiTokenContext.clear();
+
         InterviewReportDTO report = evaluationService.evaluateInterview(
                 sessionId,
                 session.getResumeText(),
                 questions,
-                kbIds // <--- 将找到的 ID 传入
+                kbIds
         );
-        // =========================================================================================
+
+        int evaluateTokensUsed = AiTokenContext.getAndClear();
+        // =======================================================================
 
         // 更新 Redis 缓存状态
         sessionCache.updateSessionStatus(sessionId, SessionStatus.EVALUATED);
@@ -473,8 +489,14 @@ public class InterviewSessionService {
         // 保存报告到数据库
         try {
             persistenceService.saveReport(sessionId, report);
+
+            // 💡 将本次判分消耗的 Token 累加保存到数据库中
+            if (evaluateTokensUsed > 0) {
+                persistenceService.addSessionTokens(sessionId, evaluateTokensUsed);
+            }
+
         } catch (Exception e) {
-            log.warn("保存报告到数据库失败: {}", e.getMessage());
+            log.warn("保存报告或更新Token到数据库失败: {}", e.getMessage());
         }
 
         return report;

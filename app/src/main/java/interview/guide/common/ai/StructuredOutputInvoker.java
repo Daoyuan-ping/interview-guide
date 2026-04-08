@@ -4,6 +4,7 @@ import interview.guide.common.exception.BusinessException;
 import interview.guide.common.exception.ErrorCode;
 import org.slf4j.Logger;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.model.ChatResponse; // 💡 新增导入
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -25,34 +26,52 @@ public class StructuredOutputInvoker {
     private final boolean includeLastErrorInRetryPrompt;
 
     public StructuredOutputInvoker(
-        @Value("${app.ai.structured-max-attempts:2}") int maxAttempts,
-        @Value("${app.ai.structured-include-last-error:true}") boolean includeLastErrorInRetryPrompt
+            @Value("${app.ai.structured-max-attempts:2}") int maxAttempts,
+            @Value("${app.ai.structured-include-last-error:true}") boolean includeLastErrorInRetryPrompt
     ) {
         this.maxAttempts = Math.max(1, maxAttempts);
         this.includeLastErrorInRetryPrompt = includeLastErrorInRetryPrompt;
     }
 
     public <T> T invoke(
-        ChatClient chatClient,
-        String systemPromptWithFormat,
-        String userPrompt,
-        BeanOutputConverter<T> outputConverter,
-        ErrorCode errorCode,
-        String errorPrefix,
-        String logContext,
-        Logger log
+            ChatClient chatClient,
+            String systemPromptWithFormat,
+            String userPrompt,
+            BeanOutputConverter<T> outputConverter,
+            ErrorCode errorCode,
+            String errorPrefix,
+            String logContext,
+            Logger log
     ) {
         Exception lastError = null;
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             String attemptSystemPrompt = attempt == 1
-                ? systemPromptWithFormat
-                : buildRetrySystemPrompt(systemPromptWithFormat, lastError);
+                    ? systemPromptWithFormat
+                    : buildRetrySystemPrompt(systemPromptWithFormat, lastError);
             try {
-                return chatClient.prompt()
-                    .system(attemptSystemPrompt)
-                    .user(userPrompt)
-                    .call()
-                    .entity(outputConverter);
+                // 💡 获取完整的 ChatResponse
+                ChatResponse response = chatClient.prompt()
+                        .system(attemptSystemPrompt)
+                        .user(userPrompt)
+                        .call()
+                        .chatResponse();
+
+                // 💡 修复1：使用 Integer 接收 tokens
+                if (response.getMetadata() != null && response.getMetadata().getUsage() != null) {
+                    Integer tokens = response.getMetadata().getUsage().getTotalTokens();
+                    if (tokens != null) {
+                        AiTokenContext.addTokens(tokens); // 已经是 Integer，不需要 .intValue()
+                        log.info("【AI Token 消耗】模块: {}, 本次消耗: {} tokens", logContext, tokens);
+                    }
+                }
+
+                // 💡 修复2：尝试使用 getText() 获取文本内容
+                // 如果 getText() 依然报错，请在 IDEA 里输入 response.getResult().getOutput().
+                // 看一下代码提示，寻找返回 String 的方法（如 getTextContent() 等）
+                String content = response.getResult().getOutput().getText();
+
+                return outputConverter.convert(content);
+
             } catch (Exception e) {
                 lastError = e;
                 log.warn("{}结构化解析失败，准备重试: attempt={}, error={}", logContext, attempt, e.getMessage());
@@ -60,20 +79,20 @@ public class StructuredOutputInvoker {
         }
 
         throw new BusinessException(
-            errorCode,
-            errorPrefix + (lastError != null ? lastError.getMessage() : "unknown")
+                errorCode,
+                errorPrefix + (lastError != null ? lastError.getMessage() : "unknown")
         );
     }
 
     private String buildRetrySystemPrompt(String systemPromptWithFormat, Exception lastError) {
         StringBuilder prompt = new StringBuilder(systemPromptWithFormat)
-            .append("\n\n")
-            .append(STRICT_JSON_INSTRUCTION)
-            .append("\n上次输出解析失败，请仅返回合法 JSON。");
+                .append("\n\n")
+                .append(STRICT_JSON_INSTRUCTION)
+                .append("\n上次输出解析失败，请仅返回合法 JSON。");
 
         if (includeLastErrorInRetryPrompt && lastError != null && lastError.getMessage() != null) {
             prompt.append("\n上次失败原因：")
-                .append(sanitizeErrorMessage(lastError.getMessage()));
+                    .append(sanitizeErrorMessage(lastError.getMessage()));
         }
         return prompt.toString();
     }
