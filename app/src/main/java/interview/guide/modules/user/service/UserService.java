@@ -1,20 +1,23 @@
 package interview.guide.modules.user.service;
+
 import interview.guide.infrastructure.file.FileStorageService;
 import interview.guide.infrastructure.redis.RedisService;
+import interview.guide.modules.admin.model.AdminUserDTO; // 引入管理端DTO
 import interview.guide.modules.user.model.AuthDTO.AuthRequest;
 import interview.guide.modules.user.model.AuthDTO.AuthResponse;
 import interview.guide.modules.user.model.UserEntity;
 import interview.guide.modules.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+
 /**
  * Project:     interview-guide
  * Author:      32107
@@ -32,7 +35,6 @@ public class UserService {
         String salt = "ai-interview-2026-";
         return DigestUtils.md5DigestAsHex((salt + password).getBytes(StandardCharsets.UTF_8));
     }
-
     public AuthResponse register(AuthRequest request) {
         // 1. 校验邮箱验证码
         String cachedEmailCode = redisService.get("EMAIL_CODE:" + request.email());
@@ -51,15 +53,26 @@ public class UserService {
         user.setEmail(request.email());
         user.setPassword(encryptPassword(request.password()));
         user.setRole("USER");
+        user.setStatus("NORMAL");
 
         userRepository.save(user);
 
-        // 注册成功后销毁验证码，防止重复使用
+        // 注册成功后销毁验证码
         redisService.delete("EMAIL_CODE:" + request.email());
 
-        // 简单 Token（后续如果要接入 JWT 等安全框架，可在这里替换）
+        // 4. 生成响应
         String token = UUID.randomUUID().toString().replace("-", "");
-        return new AuthResponse(token, user.getId(), user.getUsername(), user.getRole());
+
+        // 💡 新注册用户头像初始为 null
+        String defaultAvatarUrl = null;
+
+        return new AuthResponse(
+                token,
+                user.getId(),
+                user.getUsername(),
+                user.getRole(),
+                null // 👈 传入 null，解决找不到变量的问题
+        );
     }
 
     public AuthResponse login(AuthRequest request) {
@@ -70,8 +83,20 @@ public class UserService {
             throw new RuntimeException("用户名或密码错误");
         }
 
+        if ("BANNED".equals(user.getStatus())) {
+            throw new RuntimeException("您的账号已被封禁，请联系管理员");
+        }
+
+        // 💡 重点：把文件 Key 转换为可直接访问的 URL
+        String fullAvatarUrl = null;
+        if (user.getAvatar() != null && !user.getAvatar().isEmpty()) {
+            fullAvatarUrl = fileStorageService.getFileUrl(user.getAvatar());
+        }
+
         String token = UUID.randomUUID().toString().replace("-", "");
-        return new AuthResponse(token, user.getId(), user.getUsername(), user.getRole());
+
+        // 💡 确保你的 AuthResponse 构造函数支持传 avatarUrl
+        return new AuthResponse(token, user.getId(), user.getUsername(), user.getRole(), fullAvatarUrl);
     }
 
     public Map<String, Object> getUserInfo(Long userId) {
@@ -96,7 +121,7 @@ public class UserService {
         return userInfo;
     }
 
-    // 新增：更新基础资料
+    // 更新基础资料
     public void updateProfile(Long userId, String phone, String targetPosition, String bio) {
         UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
@@ -134,7 +159,8 @@ public class UserService {
         user.setPassword(encryptPassword(newPassword));
         userRepository.save(user);
     }
-//增加重置密码的核心业务逻辑。
+
+    // 增加重置密码的核心业务逻辑
     public void resetPassword(String email, String emailCode, String newPassword) {
         // 1. 校验邮箱验证码
         String cachedEmailCode = redisService.get("EMAIL_CODE:" + email);
@@ -152,5 +178,43 @@ public class UserService {
 
         // 4. 修改成功后销毁验证码，防止重复使用
         redisService.delete("EMAIL_CODE:" + email);
+    }
+
+    // ================= 以下为新增的后台管理功能 =================
+
+    // 获取所有用户统计信息（需要关联 UserRepository 里的 findAllUserStats 接口）
+    public List<AdminUserDTO> getAllUsersWithStats() {
+        List<AdminUserDTO> users = userRepository.findAllUserStats();
+        // 💡 遍历列表，将 key 转换为可访问的完整 URL
+        users.forEach(user -> {
+            if (user.getAvatarUrl() != null && !user.getAvatarUrl().isEmpty()) {
+                user.setAvatarUrl(fileStorageService.getFileUrl(user.getAvatarUrl()));
+            }
+        });
+        return users;
+    }
+
+    // 账号管控：修改账号状态 (封禁/解封)
+    public void updateUserStatus(Long userId, String status) {
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("用户不存在"));
+        user.setStatus(status);
+        userRepository.save(user);
+    }
+
+    // 管理员强制重置用户密码（无需校验原密码）
+    public void adminResetPassword(Long userId, String newPassword) {
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("用户不存在"));
+        user.setPassword(encryptPassword(newPassword));
+        userRepository.save(user);
+    }
+
+    // 角色分配：提拔管理员或降级为普通用户
+    public void updateUserRole(Long userId, String role) {
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("用户不存在"));
+        user.setRole(role);
+        userRepository.save(user);
     }
 }

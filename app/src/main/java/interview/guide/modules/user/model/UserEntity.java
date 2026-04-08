@@ -24,20 +24,29 @@ public class UserEntity {
     @Column(nullable = false, length = 100)
     private String password;
 
-    // 新增：邮箱字段
+    // 邮箱字段
     @Column(unique = true, nullable = false, length = 100)
     private String email;
 
+    // 角色字段 (USER / ADMIN)
     @Column(nullable = false, length = 20)
     private String role = "USER";
 
+    // 💡 新增：账号状态字段 (NORMAL / BANNED)
+    @Column(nullable = false, length = 20)
+    private String status = "NORMAL";
+
     private LocalDateTime createdAt;
+
+    // 💡 建议新增：记录信息最后修改时间
+    private LocalDateTime updatedAt;
 
     @Column(length = 255)
     private String avatar;
 
     @Column(length = 20)
     private String phone;
+
     @Column(length = 50)
     private String targetPosition; // 目标岗位
 
@@ -47,68 +56,50 @@ public class UserEntity {
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now();
     }
 
-    // Getters and Setters
-    public Long getId() {
-        return id;
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = LocalDateTime.now();
     }
 
-    public void setId(Long id) {
-        this.id = id;
-    }
+    // ================= Getters and Setters =================
 
-    public String getUsername() {
-        return username;
-    }
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
 
-    public void setUsername(String username) {
-        this.username = username;
-    }
+    public String getUsername() { return username; }
+    public void setUsername(String username) { this.username = username; }
 
-    public String getPassword() {
-        return password;
-    }
+    public String getPassword() { return password; }
+    public void setPassword(String password) { this.password = password; }
 
-    public void setPassword(String password) {
-        this.password = password;
-    }
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
 
-    public String getEmail() {
-        return email;
-    }
+    public String getRole() { return role; }
+    public void setRole(String role) { this.role = role; }
 
-    public void setEmail(String email) {
-        this.email = email;
-    }
+    // 💡 新增 status 的 Get/Set
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
 
-    public String getRole() {
-        return role;
-    }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
-    public void setRole(String role) {
-        this.role = role;
-    }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
+    public String getAvatar() { return avatar; }
+    public void setAvatar(String avatar) { this.avatar = avatar; }
 
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public String getAvatar() {
-        return avatar;
-    }
-
-    public void setAvatar(String avatar) {
-        this.avatar = avatar;
-    }
     public String getPhone() { return phone; }
     public void setPhone(String phone) { this.phone = phone; }
+
     public String getTargetPosition() { return targetPosition; }
     public void setTargetPosition(String targetPosition) { this.targetPosition = targetPosition; }
+
     public String getBio() { return bio; }
     public void setBio(String bio) { this.bio = bio; }
 }

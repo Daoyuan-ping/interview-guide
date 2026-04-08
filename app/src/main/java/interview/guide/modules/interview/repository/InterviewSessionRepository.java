@@ -58,4 +58,6 @@ public interface InterviewSessionRepository extends JpaRepository<InterviewSessi
         Long resumeId,
         List<SessionStatus> statuses
     );
+    // 获取指定时间之后的面试记录
+    List<InterviewSessionEntity> findByCreatedAtAfter(java.time.LocalDateTime date);
 }

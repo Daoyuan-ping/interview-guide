@@ -4,6 +4,9 @@ import { useEffect, useState, Suspense, lazy } from 'react';
 import { historyApi } from './api/history';
 import type { UploadKnowledgeBaseResponse } from './api/knowledgebase';
 import DashboardPage from "./pages/DashboardPage.tsx";
+import AdminLayout from "./components/AdminLayout.tsx";
+import AdminDashboardPage from "./pages/admin/AdminDashboardPage.tsx";
+import AdminUsersPage from "./pages/admin/AdminUsersPage.tsx";
 
 // Lazy load components
 const HomePage = lazy(() => import('./pages/HomePage'));       // <--- 新增：引入首页
@@ -179,9 +182,19 @@ function App() {
             </Route>
 
             {/* 捕获未知路由，重定向回首页 */}
+
             <Route path="*" element={<Navigate to="/" replace />} />
             {/* 👈 新增看板路由 */}
             <Route path="dashboard" element={<DashboardPage />} />
+
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route index element={<AdminDashboardPage />} />
+
+              <Route path="users" element={<AdminUsersPage /> }/>
+              <Route path="knowledge" element={<div className="p-4">公共题库模块开发中...</div>} />
+              <Route path="settings" element={<div className="p-4">系统设置模块开发中...</div>} />
+            </Route>
+
           </Routes>
         </Suspense>
       </BrowserRouter>

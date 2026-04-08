@@ -1,6 +1,7 @@
 import axios from 'axios';
 
 export interface AuthResponse {
+    fullAvatarUrl: any;
     token: string;
     userId: number;
     username: string;

@@ -65,6 +65,8 @@ public class InterviewSessionEntity {
     @Column(columnDefinition = "TEXT")
     private String referenceAnswersJson;
 
+    @Column(name = "user_id")
+    private Long userId;
     // 面试答案记录
     @OneToMany(mappedBy = "session", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<InterviewAnswerEntity> answers = new ArrayList<>();
@@ -249,4 +251,6 @@ public class InterviewSessionEntity {
         answers.add(answer);
         answer.setSession(this);
     }
+    public Long getUserId() { return userId; }
+    public void setUserId(Long userId) { this.userId = userId; }
 }
