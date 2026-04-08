@@ -52,7 +52,7 @@ export default function DashboardPage() {
                     <h1 className="text-2xl font-bold text-slate-800 dark:text-white">能力数据看板</h1>
                     <p className="text-slate-500 dark:text-slate-400 mt-1">查看你的 AI 面试表现与能力成长轨迹</p>
                 </div>
-                <Link to="/interviews" className="px-4 py-2 bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 rounded-lg font-medium hover:bg-primary-100 transition-colors">
+                <Link to="/history" className="px-4 py-2 bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 rounded-lg font-medium hover:bg-primary-100 transition-colors">
                     开始新面试
                 </Link>
             </div>
