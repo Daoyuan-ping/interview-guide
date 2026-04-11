@@ -1,38 +1,77 @@
-import React, {useState, useEffect, useCallback} from 'react';
-import {useNavigate} from 'react-router-dom';
-import {authApi} from '../api/auth';
-import './Landing.css';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+    User, 
+    Lock, 
+    Mail, 
+    ShieldCheck, 
+    Key, 
+    Eye, 
+    EyeOff, 
+    ArrowLeft, 
+    Loader2, 
+    CheckCircle2, 
+    AlertCircle,
+    Bot,
+    ExternalLink,
+    ChevronRight,
+    Settings
+} from 'lucide-react';
+import { authApi } from '../api/auth';
+
+type AuthMode = 'login' | 'register' | 'forgot';
 
 export default function LoginPage() {
     const navigate = useNavigate();
 
-    // 模式切换：登录、注册、忘记密码
-    const [authMode, setAuthMode] = useState<'login' | 'register' | 'forgot'>('login');
-    const isRegister = authMode === 'register';
-    const isForgot = authMode === 'forgot';
-
-    // 💡 新增：管理员登录状态切换
+    // 状态管理
+    const [authMode, setAuthMode] = useState<AuthMode>('login');
     const [isAdminLogin, setIsAdminLogin] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [globalError, setGlobalError] = useState('');
+    const [rememberMe, setRememberMe] = useState(false);
+    const [agreeTerms, setAgreeTerms] = useState(false);
 
-    // 表单状态
+    // 表单数据
     const [formData, setFormData] = useState({
-        username: '', password: '', confirmPassword: '',
-        email: '', emailCode: '', captchaCode: ''
+        username: '',
+        password: '',
+        confirmPassword: '',
+        email: '',
+        emailCode: '',
+        captchaCode: ''
     });
 
-    // 字段级错误状态（红字提示）
-    const [fieldErrors, setFieldErrors] = useState({
-        username: '', password: '', confirmPassword: '',
-        email: '', emailCode: '', captchaCode: ''
-    });
+    // 校验错误
+    const [errors, setErrors] = useState<Record<string, string>>({});
 
-    // 验证码与全局状态
+    // 验证码
     const [captchaImg, setCaptchaImg] = useState('');
     const [captchaKey, setCaptchaKey] = useState('');
     const [countdown, setCountdown] = useState(0);
-    const [loading, setLoading] = useState(false);
-    const [globalError, setGlobalError] = useState('');
 
+    // 密码强度计算
+    const passwordStrength = useMemo(() => {
+        const pass = formData.password;
+        if (!pass) return 0;
+        let score = 0;
+        if (pass.length >= 8) score += 25;
+        if (/[a-z]/.test(pass) && /[A-Z]/.test(pass)) score += 25;
+        if (/[0-9]/.test(pass)) score += 25;
+        if (/[^a-zA-Z0-9]/.test(pass)) score += 25;
+        return score;
+    }, [formData.password]);
+
+    const getStrengthLabel = (score: number) => {
+        if (score <= 25) return { label: '弱', color: 'bg-red-500' };
+        if (score <= 50) return { label: '中', color: 'bg-amber-500' };
+        if (score <= 75) return { label: '强', color: 'bg-emerald-500' };
+        return { label: '极强', color: 'bg-indigo-500' };
+    };
+
+    // 获取图形验证码
     const fetchCaptcha = useCallback(async () => {
         try {
             const res = await authApi.getCaptcha();
@@ -43,13 +82,14 @@ export default function LoginPage() {
         }
     }, []);
 
+    // 初始化与切换模式
     useEffect(() => {
         setGlobalError('');
-        setFieldErrors({username: '', password: '', confirmPassword: '', email: '', emailCode: '', captchaCode: ''});
-        // 注册和忘记密码都需要图形验证码
-        if (isRegister || isForgot) fetchCaptcha();
+        setErrors({});
+        if (authMode !== 'login') fetchCaptcha();
     }, [authMode, fetchCaptcha]);
 
+    // 倒计时逻辑
     useEffect(() => {
         if (countdown > 0) {
             const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
@@ -57,151 +97,122 @@ export default function LoginPage() {
         }
     }, [countdown]);
 
-    // 核心校验逻辑
+    // 实时校验逻辑
     const validateField = (name: string, value: string) => {
+        let error = '';
         switch (name) {
             case 'username':
-                if (!value && !isForgot) return '请输入账号';
-                if (isRegister && !/^[a-zA-Z0-9_-]{4,16}$/.test(value)) return '需为 4-16 位字母/数字/下划线';
+                if (!value && authMode !== 'forgot') error = '请输入用户名';
+                else if (authMode === 'register' && !/^[a-zA-Z0-9_-]{4,16}$/.test(value)) 
+                    error = '4-16 位字母/数字/下划线';
                 break;
             case 'email':
-                if (!value && (isRegister || isForgot)) return '请输入邮箱';
-                if ((isRegister || isForgot) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return '请输入正确的邮箱格式';
+                if (!value) error = '请输入邮箱';
+                else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) error = '邮箱格式不正确';
                 break;
             case 'password':
-                if (!value) return isForgot ? '请输入新密码' : '请输入密码';
-                if (isRegister || isForgot) {
-                    if (value.length < 8 || value.length > 18) return '密码长度需为 8-18 位';
-                    let types = 0;
-                    if (/[a-zA-Z]/.test(value)) types++;
-                    if (/[0-9]/.test(value)) types++;
-                    if (/[^a-zA-Z0-9\s]/.test(value)) types++;
-                    if (types < 2) return '需包含数字/字母/符号中至少两种';
+                if (!value) error = '请输入密码';
+                else if (authMode !== 'login') {
+                    if (value.length < 8) error = '密码至少 8 位';
+                    else if (passwordStrength < 50) error = '密码强度不足';
                 }
                 break;
             case 'confirmPassword':
-                if ((isRegister || isForgot) && value !== formData.password) return '两次输入的密码不一致';
+                if (value !== formData.password) error = '两次密码不一致';
                 break;
             case 'captchaCode':
-                if ((isRegister || isForgot) && !value) return '请输入图形验证码';
+                if (!value) error = '请输入图形验证码';
                 break;
             case 'emailCode':
-                if ((isRegister || isForgot) && !value) return '请输入邮箱验证码';
+                if (!value) error = '请输入 6 位验证码';
                 break;
         }
-        return '';
-    };
-
-    const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-        const {name, value} = e.target;
-        const error = validateField(name, value);
-        setFieldErrors(prev => ({...prev, [name]: error}));
+        return error;
     };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const {name, value} = e.target;
-        setFormData(prev => ({...prev, [name]: value}));
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
         setGlobalError('');
-
-        if (fieldErrors[name as keyof typeof fieldErrors]) {
-            const error = validateField(name, value);
-            setFieldErrors(prev => ({...prev, [name]: error}));
-        }
-
-        if (name === 'password' && fieldErrors.confirmPassword) {
-            if (value === formData.confirmPassword) setFieldErrors(prev => ({...prev, confirmPassword: ''}));
-        }
+        
+        // 实时校验
+        const error = validateField(name, value);
+        setErrors(prev => ({ ...prev, [name]: error }));
     };
 
+    // 发送邮箱验证码
     const handleSendEmailCode = async () => {
-        // 1. 基础字段校验
         const emailErr = validateField('email', formData.email);
         const captchaErr = validateField('captchaCode', formData.captchaCode);
 
         if (emailErr || captchaErr) {
-            setFieldErrors(prev => ({...prev, email: emailErr, captchaCode: captchaErr}));
+            setErrors(prev => ({ ...prev, email: emailErr, captchaCode: captchaErr }));
             return;
         }
 
         try {
-            // 💡 优化点：发送前对 captchaCode 进行 .trim()，防止用户误输入空格
-            const payload = {
+            await authApi.sendEmailCode({
                 email: formData.email,
                 captchaKey: captchaKey,
                 captchaCode: formData.captchaCode.trim()
-            };
-
-            await authApi.sendEmailCode(payload);
-
-            // 2. 成功反馈
+            });
             setCountdown(60);
             setGlobalError('');
-            alert("验证码已发送至您的邮箱，请查收！");
         } catch (err: any) {
-            // 3. 错误处理：如果是验证码错误，后端会抛出异常，这里捕获并提示
-            const errMsg = err.response?.data?.message || err.message || '发送失败';
-            setFieldErrors(prev => ({...prev, captchaCode: errMsg}));
-
-            // 💡 验证码一旦失败，建议立即刷新图形验证码，防止由于 Key 已在 Redis 被销毁导致的连续报错
+            setErrors(prev => ({ ...prev, captchaCode: err.response?.data?.message || '发送失败' }));
             fetchCaptcha();
-            setFormData(prev => ({...prev, captchaCode: ''}));
         }
     };
 
+    // 提交表单
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        
+        // 最终校验
+        const newErrors: Record<string, string> = {};
+        const fields = authMode === 'login' 
+            ? ['username', 'password'] 
+            : authMode === 'register' 
+                ? ['username', 'email', 'captchaCode', 'emailCode', 'password', 'confirmPassword']
+                : ['email', 'captchaCode', 'emailCode', 'password', 'confirmPassword'];
 
-        let hasError = false;
-        const newFieldErrors = {...fieldErrors};
-
-        let fieldsToCheck: string[] = [];
-        if (authMode === 'login') fieldsToCheck = ['username', 'password'];
-        if (authMode === 'register') fieldsToCheck = ['username', 'email', 'captchaCode', 'emailCode', 'password', 'confirmPassword'];
-        if (authMode === 'forgot') fieldsToCheck = ['email', 'captchaCode', 'emailCode', 'password', 'confirmPassword'];
-
-        fieldsToCheck.forEach(field => {
-            const error = validateField(field, formData[field as keyof typeof formData]);
-            newFieldErrors[field as keyof typeof fieldErrors] = error;
-            if (error) hasError = true;
+        fields.forEach(f => {
+            const err = validateField(f, (formData as any)[f]);
+            if (err) newErrors[f] = err;
         });
 
-        if (hasError) {
-            setFieldErrors(newFieldErrors);
+        if (authMode === 'register' && !agreeTerms) {
+            setGlobalError('请先阅读并同意用户协议与隐私政策');
+            return;
+        }
+
+        if (Object.keys(newErrors).length > 0) {
+            setErrors(newErrors);
             return;
         }
 
         setLoading(true);
-        setGlobalError('');
-
         try {
+            let res;
             if (authMode === 'register') {
-                const res = await authApi.register({...formData, captchaKey});
-                localStorage.setItem('ai_token', res.token);
-                localStorage.setItem('ai_user', JSON.stringify({
-                    userId: res.userId,
-                    username: res.username,
-                    role: res.role,
-                    avatarUrl: res.fullAvatarUrl
-                }));
-                alert('注册成功，自动登录进入系统！');
-                navigate('/upload');
+                res = await authApi.register({ ...formData, captchaKey });
+                alert('注册成功！');
             } else if (authMode === 'forgot') {
                 await authApi.resetPassword({
                     email: formData.email,
                     emailCode: formData.emailCode,
                     newPassword: formData.password
                 });
-                alert('密码重置成功，请使用新密码重新登录！');
-                setAuthMode('login'); // 找回密码成功后返回登录页
+                alert('密码重置成功');
+                setAuthMode('login');
+                return;
             } else {
-                // 💡 重点修改：根据勾选状态调用不同接口
-                let res;
-                if (isAdminLogin) {
-                    res = await authApi.adminLogin({username: formData.username, password: formData.password});
-                } else {
-                    res = await authApi.login({username: formData.username, password: formData.password});
-                }
+                res = isAdminLogin 
+                    ? await authApi.adminLogin({ username: formData.username, password: formData.password })
+                    : await authApi.login({ username: formData.username, password: formData.password });
+            }
 
+            if (res) {
                 localStorage.setItem('ai_token', res.token);
                 localStorage.setItem('ai_user', JSON.stringify({
                     userId: res.userId,
@@ -209,393 +220,426 @@ export default function LoginPage() {
                     role: res.role,
                     avatarUrl: res.fullAvatarUrl
                 }));
-                // 智能路由逻辑：根据后端返回的角色决定去哪
-                // 💡 智能路由逻辑修改：
-                // 只有在用户主动勾选了“管理员登录”，并且后端确认是 ADMIN 时，才跳转到后台大屏
-                // 否则（即使他是管理员，但没有勾选“管理员登录”），作为普通用户进入前台
-                if (isAdminLogin && res.role === 'ADMIN') {
-                    navigate('/admin');
-                } else {
-                    navigate('/upload');
-                }
+                navigate(isAdminLogin && res.role === 'ADMIN' ? '/admin' : '/upload');
             }
         } catch (err: any) {
-            setGlobalError(err.response?.data?.message || err.message || '操作失败，请重试');
-            if (isRegister || isForgot) {
-                fetchCaptcha();
-                setFormData(prev => ({...prev, captchaCode: ''}));
-            }
+            setGlobalError(err.response?.data?.message || '操作失败，请重试');
+            if (authMode !== 'login') fetchCaptcha();
         } finally {
             setLoading(false);
         }
     };
 
-    const renderInput = (name: string, label: string, icon: string, type: string, placeholder: string, extraElement?: React.ReactNode) => {
-        const error = fieldErrors[name as keyof typeof fieldErrors];
-        return (
-            <div className="form-group"
-                 style={{marginBottom: error ? '1.8rem' : '1.2rem', transition: 'margin 0.3s ease'}}>
-                <label style={{
-                    fontSize: '0.9rem',
-                    color: '#475569',
-                    fontWeight: 600,
-                    marginBottom: '0.4rem',
-                    display: 'block'
-                }}>{label}</label>
-                <div style={{display: 'flex', gap: '10px', alignItems: 'flex-start'}}>
-                    <div style={{position: 'relative', flex: 1}}>
-                        <i className={icon} style={{
-                            position: 'absolute',
-                            left: '1rem',
-                            top: '12px',
-                            color: '#94a3b8',
-                            transition: 'color 0.3s'
-                        }}></i>
-                        <input
-                            type={type} name={name} value={formData[name as keyof typeof formData]}
-                            onChange={handleInputChange} onBlur={handleBlur}
-                            className="form-input custom-input" placeholder={placeholder}
-                            style={{
-                                borderColor: '#e2e8f0',
-                                backgroundColor: '#f8fafc',
-                                padding: '0.65rem 1rem 0.65rem 2.6rem',
-                                borderRadius: '10px',
-                                width: '100%',
-                                outline: 'none',
-                                transition: 'all 0.3s ease',
-                                fontSize: '0.95rem'
-                            }}
-                        />
-                        <div style={{
-                            position: 'absolute',
-                            top: '100%',
-                            left: '0.2rem',
-                            marginTop: '4px',
-                            color: '#ef4444',
-                            fontSize: '0.8rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            opacity: error ? 1 : 0,
-                            transform: error ? 'translateY(0)' : 'translateY(-5px)',
-                            pointerEvents: 'none',
-                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                            whiteSpace: 'nowrap'
-                        }}>
-                            {error && <><i className="fas fa-exclamation-circle"></i>{error}</>}
-                        </div>
-                    </div>
-                    {extraElement && <div style={{flexShrink: 0}}>{extraElement}</div>}
-                </div>
-            </div>
-        );
-    };
-
     return (
-        <div className="landing-body login-layout" style={{height: '100vh', overflow: 'hidden', display: 'flex'}}>
-            <style>{`
-                .custom-input:focus { border-color: var(--landing-primary) !important; background-color: white !important; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1) !important; }
-                .login-card-modern { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); }
-                .brand-section-left { position: relative; flex: 1; background: linear-gradient(135deg, var(--landing-primary), var(--landing-secondary)); display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 4rem; overflow: hidden; z-index: 1; }
-                .brand-section-left::before { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%); animation: rotateBg 30s linear infinite; pointer-events: none; }
-                @keyframes rotateBg { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-                .brand-features-grid { margin-top: 4rem; display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; z-index: 2; width: 100%; max-width: 500px; }
-                .brand-feature-item { display: flex; align-items: center; gap: 0.8rem; color: white; font-weight: 500; font-size: 1.05rem; }
-                .brand-feature-item i { width: 32px; height: 32px; background: rgba(255, 255, 255, 0.2); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
-            `}</style>
-
-            <div className="floating-shapes">
-                <div className="shape"></div>
-                <div className="shape"></div>
-                <div className="shape"></div>
-                <div className="shape"></div>
-            </div>
-
-            <div className="brand-section-left">
-                <div style={{display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '3rem', zIndex: 2}}>
-                    <svg style={{width: '48px', height: '48px', flexShrink: 0}} xmlns="http://www.w3.org/2000/svg"
-                         viewBox="0 0 32 32" fill="none">
-                        <rect width="32" height="32" rx="8" fill="white"/>
-                        <circle cx="16" cy="11" r="4" fill="url(#brandGradient)"/>
-                        <path d="M9 23c0-3.866 3.134-7 7-7s7 3.134 7 7" stroke="url(#brandGradient)" strokeWidth="2.5"
-                              strokeLinecap="round" fill="none"/>
-                        <path d="M24 6l0.5 1.5L26 8l-1.5 0.5L24 10l-0.5-1.5L22 8l1.5-0.5L24 6z" fill="white"/>
-                        <path d="M7 8l0.3 0.9L8 9.2l-0.7 0.3L7 10.4l-0.3-0.9L6 9.2l0.7-0.3L7 8z" fill="white"/>
-                        <defs>
-                            <linearGradient id="brandGradient" x1="0" y1="0" x2="32" y2="32">
-                                <stop offset="0%" stopColor="#6366f1"/>
-                                <stop offset="100%" stopColor="#8b5cf6"/>
-                            </linearGradient>
-                        </defs>
-                    </svg>
-                    <div style={{fontSize: '2.5rem', fontWeight: 700, color: 'white'}}>AI Interview</div>
+        <div className="min-h-screen bg-slate-50 flex overflow-hidden font-sans">
+            {/* 左侧品牌区 (Desktop only) */}
+            <div className="hidden lg:flex flex-1 relative bg-primary-600 overflow-hidden items-center justify-center p-12 text-white">
+                <div className="absolute inset-0 z-0">
+                    <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-white/10 rounded-full blur-[100px]" />
+                    <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-500/20 rounded-full blur-[100px]" />
                 </div>
-                <h1 style={{
-                    fontSize: '1.8rem',
-                    fontWeight: 600,
-                    color: 'white',
-                    textAlign: 'center',
-                    marginBottom: '1.5rem',
-                    zIndex: 2,
-                    lineHeight: 1.4
-                }}>用AI重新定义求职面试</h1>
-                <p style={{
-                    fontSize: '1.1rem',
-                    color: 'rgba(255, 255, 255, 0.85)',
-                    textAlign: 'center',
-                    maxWidth: '500px',
-                    lineHeight: 1.8,
-                    zIndex: 2
-                }}>基于Qwen大模型的智能简历分析与AI面试官平台，为你提供个性化的求职准备方案，助力计算机设计大赛与春招秋招。</p>
-                <div className="brand-features-grid">
-                    <div className="brand-feature-item"><i className="fas fa-file-alt"></i> <span>智能简历解析</span></div>
-                    <div className="brand-feature-item"><i className="fas fa-comments"></i> <span>AI模拟面试</span></div>
-                    <div className="brand-feature-item"><i className="fas fa-chart-line"></i> <span>能力提升建议</span></div>
-                    <div className="brand-feature-item"><i className="fas fa-brain"></i> <span>大模型驱动</span></div>
+                
+                <div className="relative z-10 max-w-lg text-center">
+                    <motion.div 
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex flex-col items-center gap-6"
+                    >
+                        <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center text-primary-600 shadow-2xl">
+                            <Bot size={48} />
+                        </div>
+                        <h1 className="text-4xl font-bold tracking-tight">AI Interview</h1>
+                        <p className="text-xl text-primary-100 leading-relaxed">
+                            用 AI 重新定义求职面试，提供专业的简历分析与智能模拟对话。
+                        </p>
+                        
+                        <div className="grid grid-cols-2 gap-4 mt-8 w-full text-left">
+                            {[
+                                { icon: <CheckCircle2 size={18} />, text: '智能简历分析' },
+                                { icon: <CheckCircle2 size={18} />, text: 'AI 模拟面试' },
+                                { icon: <CheckCircle2 size={18} />, text: '能力提升建议' },
+                                { icon: <CheckCircle2 size={18} />, text: '大模型驱动' }
+                            ].map((item, i) => (
+                                <div key={i} className="flex items-center gap-2 bg-white/10 px-4 py-3 rounded-xl backdrop-blur-sm">
+                                    {item.icon}
+                                    <span className="font-medium text-sm">{item.text}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </motion.div>
                 </div>
             </div>
 
-            <div className="login-section"
-                 style={{flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '2rem'}}>
-                <div className="login-card login-card-modern" style={{
-                    width: '100%',
-                    maxWidth: (isRegister || isForgot) ? '780px' : '420px',
-                    padding: '2.5rem 3rem', borderRadius: '24px',
-                    boxShadow: '0 20px 40px rgba(0,0,0,0.08)',
-                    transition: 'max-width 0.4s cubic-bezier(0.4, 0, 0.2, 1)'
-                }}>
-                    <div style={{textAlign: 'center', marginBottom: '1.5rem'}}>
-                        <h2 style={{
-                            fontSize: '1.8rem',
-                            color: 'var(--landing-text-dark)',
-                            marginBottom: '0.4rem',
-                            fontWeight: 700
-                        }}>
-                            {authMode === 'login' && '欢迎回来'}
-                            {authMode === 'register' && '注册专属账号'}
-                            {authMode === 'forgot' && '找回密码'}
+            {/* 右侧表单区 */}
+            <div className="flex-1 flex flex-col justify-center items-center p-6 sm:p-12 relative">
+                {/* 背景装饰 */}
+                <div className="lg:hidden absolute inset-0 -z-10 overflow-hidden">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-primary-100 rounded-full blur-[80px]" />
+                    <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-100 rounded-full blur-[80px]" />
+                </div>
+
+                <motion.div 
+                    layout
+                    className={`w-full ${authMode === 'login' ? 'max-w-md' : 'max-w-2xl'} glass-card p-8 sm:p-10`}
+                >
+                    {/* Header */}
+                    <div className="text-center mb-8">
+                        <div className="lg:hidden flex justify-center mb-6">
+                            <div className="w-12 h-12 bg-primary-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-primary-200">
+                                <Bot size={24} />
+                            </div>
+                        </div>
+                        <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2">
+                            {authMode === 'login' ? '欢迎回来' : authMode === 'register' ? '创建账号' : '找回密码'}
                         </h2>
-                        <p style={{color: '#64748b', fontSize: '0.9rem'}}>
-                            {authMode === 'login' && '登录系统即可使用全部 AI 功能'}
-                            {authMode === 'register' && '只需简单几步，即可开启你的 AI 面试之旅'}
-                            {authMode === 'forgot' && '验证邮箱后，即可重置您的账号密码'}
+                        <p className="text-slate-500">
+                            {authMode === 'login' ? '开启您的 AI 智能面试之旅' : '只需简单几步即可完成注册'}
                         </p>
                     </div>
 
-                    {globalError && (
-                        <div style={{
-                            padding: '0.6rem',
-                            background: '#fee2e2',
-                            color: '#ef4444',
-                            borderRadius: '8px',
-                            marginBottom: '1rem',
-                            fontSize: '0.85rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px'
-                        }}>
-                            <i className="fas fa-exclamation-circle"></i> {globalError}
-                        </div>
-                    )}
+                    {/* Global Error */}
+                    <AnimatePresence>
+                        {globalError && (
+                            <motion.div 
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                exit={{ opacity: 0, height: 0 }}
+                                className="bg-red-50 text-red-600 px-4 py-3 rounded-xl flex items-center gap-2 text-sm mb-6 overflow-hidden"
+                            >
+                                <AlertCircle size={18} className="shrink-0" />
+                                <span>{globalError}</span>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
 
-                    <form onSubmit={handleSubmit}>
-                        <div style={{
-                            display: 'grid',
-                            gridTemplateColumns: (isRegister || isForgot) ? '1fr 1fr' : '1fr',
-                            columnGap: '2.5rem'
-                        }}>
-                            {/* 左侧：账号/邮箱及密码 */}
-                            <div>
-                                {authMode !== 'forgot' && renderInput('username', '系统账号', 'fas fa-user', 'text', '请输入账号')}
-                                {authMode === 'forgot' && renderInput('email', '绑定邮箱', 'fas fa-envelope', 'email', '请输入绑定的邮箱')}
+                    {/* Form */}
+                    <form onSubmit={handleSubmit} className="space-y-5">
+                        <div className={`grid gap-5 ${authMode !== 'login' ? 'sm:grid-cols-2' : 'grid-cols-1'}`}>
+                            {/* Left Column (or Only Column) */}
+                            <div className="space-y-5">
+                                {authMode !== 'forgot' && (
+                                    <InputGroup 
+                                        label="用户名"
+                                        name="username"
+                                        icon={<User size={18} />}
+                                        value={formData.username}
+                                        error={errors.username}
+                                        onChange={handleInputChange}
+                                        placeholder="请输入用户名"
+                                        required
+                                    />
+                                )}
+                                
+                                {authMode === 'forgot' && (
+                                    <InputGroup 
+                                        label="绑定邮箱"
+                                        name="email"
+                                        type="email"
+                                        icon={<Mail size={18} />}
+                                        value={formData.email}
+                                        error={errors.email}
+                                        onChange={handleInputChange}
+                                        placeholder="请输入注册邮箱"
+                                        required
+                                    />
+                                )}
 
-                                {renderInput('password', isForgot ? '新密码' : '登录密码', 'fas fa-lock', 'password', isForgot ? '请输入新密码' : '请输入密码')}
-                                {(isRegister || isForgot) && renderInput('confirmPassword', '确认密码', 'fas fa-check-circle', 'password', '请再次确认密码')}
+                                <div className="space-y-2">
+                                    <InputGroup 
+                                        label={authMode === 'forgot' ? "新密码" : "密码"}
+                                        name="password"
+                                        type={showPassword ? "text" : "password"}
+                                        icon={<Lock size={18} />}
+                                        value={formData.password}
+                                        error={errors.password}
+                                        onChange={handleInputChange}
+                                        placeholder="请输入密码"
+                                        required
+                                        rightElement={
+                                            <button 
+                                                type="button"
+                                                onClick={() => setShowPassword(!showPassword)}
+                                                className="text-slate-400 hover:text-primary-600 transition-colors"
+                                            >
+                                                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                            </button>
+                                        }
+                                    />
+                                    {authMode !== 'login' && formData.password && (
+                                        <div className="space-y-1.5 px-1">
+                                            <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                                <span>强度: {getStrengthLabel(passwordStrength).label}</span>
+                                            </div>
+                                            <div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden">
+                                                <motion.div 
+                                                    initial={{ width: 0 }}
+                                                    animate={{ width: `${passwordStrength}%` }}
+                                                    className={`h-full ${getStrengthLabel(passwordStrength).color}`}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {(authMode !== 'login') && (
+                                    <InputGroup 
+                                        label="确认密码"
+                                        name="confirmPassword"
+                                        type={showPassword ? "text" : "password"}
+                                        icon={<ShieldCheck size={18} />}
+                                        value={formData.confirmPassword}
+                                        error={errors.confirmPassword}
+                                        onChange={handleInputChange}
+                                        placeholder="请再次输入密码"
+                                        required
+                                    />
+                                )}
                             </div>
 
-                            {/* 右侧：验证安全列 */}
-                            {(isRegister || isForgot) && (
-                                <div>
-                                    {authMode === 'register' && renderInput('email', '安全邮箱', 'fas fa-envelope', 'email', '请输入邮箱')}
-                                    {renderInput('captchaCode', '图形验证', 'fas fa-shield-alt', 'text', '右侧验证码',
-                                        captchaImg ? (
-                                            <img src={captchaImg} alt="验证码" onClick={fetchCaptcha}
-                                                 style={{
-                                                     height: '42px',
-                                                     width: '120px',
-                                                     borderRadius: '8px',
-                                                     cursor: 'pointer',
-                                                     border: '1px solid #e2e8f0',
-                                                     objectFit: 'contain',
-                                                     background: '#fff'
-                                                 }}
-                                                 title="点击刷新验证码"/>
-                                        ) : (
-                                            <div style={{
-                                                height: '42px',
-                                                width: '120px',
-                                                background: '#f1f5f9',
-                                                borderRadius: '8px',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center'
-                                            }}>
-                                                <i className="fas fa-spinner fa-spin text-slate-400"></i>
-                                            </div>
-                                        )
+                            {/* Right Column (For Register/Forgot) */}
+                            {authMode !== 'login' && (
+                                <div className="space-y-5">
+                                    {authMode === 'register' && (
+                                        <InputGroup 
+                                            label="邮箱地址"
+                                            name="email"
+                                            type="email"
+                                            icon={<Mail size={18} />}
+                                            value={formData.email}
+                                            error={errors.email}
+                                            onChange={handleInputChange}
+                                            placeholder="请输入邮箱"
+                                            required
+                                        />
                                     )}
-                                    {renderInput('emailCode', '邮箱验证', 'fas fa-key', 'text', '6位验证码',
-                                        <button type="button" onClick={handleSendEmailCode} disabled={countdown > 0}
-                                                style={{
-                                                    height: '42px',
-                                                    width: '120px',
-                                                    background: countdown > 0 ? '#e2e8f0' : 'var(--landing-primary)',
-                                                    color: countdown > 0 ? '#64748b' : 'white',
-                                                    border: 'none',
-                                                    borderRadius: '8px',
-                                                    fontWeight: 600,
-                                                    cursor: countdown > 0 ? 'not-allowed' : 'pointer',
-                                                    transition: 'all 0.3s',
-                                                    fontSize: '0.85rem'
-                                                }}>
-                                            {countdown > 0 ? `${countdown}s` : '获取验证码'}
-                                        </button>
-                                    )}
+
+                                    <div className="grid grid-cols-1 gap-5">
+                                        <InputGroup 
+                                            label="图形验证"
+                                            name="captchaCode"
+                                            icon={<ShieldCheck size={18} />}
+                                            value={formData.captchaCode}
+                                            error={errors.captchaCode}
+                                            onChange={handleInputChange}
+                                            placeholder="请输入验证码"
+                                            required
+                                            rightElement={
+                                                captchaImg ? (
+                                                    <img 
+                                                        src={captchaImg} 
+                                                        alt="Captcha" 
+                                                        onClick={fetchCaptcha}
+                                                        className="h-8 w-24 object-contain cursor-pointer rounded hover:opacity-80 transition-opacity"
+                                                        title="点击刷新"
+                                                    />
+                                                ) : <Loader2 className="animate-spin text-primary-600" size={18} />
+                                            }
+                                        />
+                                        
+                                        <InputGroup 
+                                            label="邮箱验证码"
+                                            name="emailCode"
+                                            icon={<Key size={18} />}
+                                            value={formData.emailCode}
+                                            error={errors.emailCode}
+                                            onChange={handleInputChange}
+                                            placeholder="6 位验证码"
+                                            required
+                                            rightElement={
+                                                <button 
+                                                    type="button"
+                                                    onClick={handleSendEmailCode}
+                                                    disabled={countdown > 0}
+                                                    className="text-xs font-bold text-primary-600 hover:text-primary-700 disabled:text-slate-400 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                                                >
+                                                    {countdown > 0 ? `${countdown}s 后重试` : '获取验证码'}
+                                                </button>
+                                            }
+                                        />
+                                    </div>
                                 </div>
                             )}
                         </div>
 
+                        {/* Extra Options */}
                         {authMode === 'login' && (
-                            <div style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                marginBottom: '1.5rem',
-                                marginTop: '-0.2rem'
-                            }}>
-                                {/* 💡 新增：让用户选择以普通用户还是管理员身份登录 */}
-                                <div style={{ display: 'flex', gap: '1rem' }}>
-                                    <label style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '0.5rem',
-                                        cursor: 'pointer',
-                                        color: '#475569',
-                                        fontSize: '0.85rem'
-                                    }}>
-                                        <input type="checkbox" style={{
-                                            accentColor: 'var(--landing-primary)',
-                                            width: '14px',
-                                            height: '14px'
-                                        }}/> 保持登录
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-2">
+                                <div className="flex items-center gap-6">
+                                    <label className="flex items-center gap-2 cursor-pointer group">
+                                        <div className="relative flex items-center">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={rememberMe}
+                                                onChange={() => setRememberMe(!rememberMe)}
+                                                className="peer appearance-none w-5 h-5 border-2 border-slate-200 rounded-md checked:bg-primary-600 checked:border-primary-600 transition-all cursor-pointer"
+                                            />
+                                            <CheckCircle2 size={14} className="absolute left-0.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" />
+                                        </div>
+                                        <span className="text-sm text-slate-600 font-medium group-hover:text-primary-600 transition-colors">记住我</span>
                                     </label>
-                                    <label style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '0.5rem',
-                                        cursor: 'pointer',
-                                        color: '#475569',
-                                        fontSize: '0.85rem'
-                                    }}>
-                                        <input type="checkbox"
-                                               checked={isAdminLogin}
-                                               onChange={(e) => setIsAdminLogin(e.target.checked)}
-                                               style={{
-                                                   accentColor: 'var(--landing-primary)',
-                                                   width: '14px',
-                                                   height: '14px'
-                                               }}/> 管理员登录
+
+                                    <label className="flex items-center gap-2 cursor-pointer group">
+                                        <div className="relative flex items-center">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={isAdminLogin}
+                                                onChange={() => setIsAdminLogin(!isAdminLogin)}
+                                                className="peer appearance-none w-5 h-5 border-2 border-slate-200 rounded-md checked:bg-primary-600 checked:border-primary-600 transition-all cursor-pointer"
+                                            />
+                                            <Settings size={14} className="absolute left-0.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" />
+                                        </div>
+                                        <span className="text-sm text-slate-600 font-medium group-hover:text-primary-600 transition-colors">管理员登录</span>
                                     </label>
                                 </div>
-                                <a href="#" onClick={(e) => {
-                                    e.preventDefault();
-                                    setAuthMode('forgot');
-                                    setGlobalError('');
-                                    setFieldErrors({
-                                        username: '', password: '', confirmPassword: '',
-                                        email: '', emailCode: '', captchaCode: ''
-                                    });
-                                    setFormData({
-                                        username: '', password: '', confirmPassword: '',
-                                        email: '', emailCode: '', captchaCode: ''
-                                    });
-                                }} style={{
-                                    color: 'var(--landing-primary)',
-                                    textDecoration: 'none',
-                                    fontWeight: 600,
-                                    fontSize: '0.85rem'
-                                }}>忘记密码？</a>
+                                <button 
+                                    type="button"
+                                    onClick={() => setAuthMode('forgot')}
+                                    className="text-sm font-bold text-primary-600 hover:text-primary-700 transition-colors text-left"
+                                >
+                                    忘记密码？
+                                </button>
                             </div>
                         )}
 
-                        <button type="submit" disabled={loading} style={{
-                            width: '100%',
-                            padding: '0.9rem',
-                            background: 'linear-gradient(135deg, var(--landing-primary), var(--landing-secondary))',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '10px',
-                            fontSize: '1.05rem',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            transition: 'all 0.3s',
-                            boxShadow: '0 8px 15px rgba(79, 70, 229, 0.2)',
-                            opacity: loading ? 0.7 : 1,
-                            marginTop: '0.5rem'
-                        }}>
-                            {loading ?
-                                <i className="fas fa-spinner fa-spin"></i> : (authMode === 'login' ? '安全登录' : (authMode === 'register' ? '立 即 注 册' : '确 认 重 置'))}
-                        </button>
+                        {authMode === 'register' && (
+                            <div className="py-2">
+                                <label className="flex items-start gap-3 cursor-pointer group">
+                                    <div className="relative flex items-center mt-0.5">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={agreeTerms}
+                                            onChange={() => setAgreeTerms(!agreeTerms)}
+                                            className="peer appearance-none w-5 h-5 border-2 border-slate-200 rounded-md checked:bg-primary-600 checked:border-primary-600 transition-all cursor-pointer"
+                                        />
+                                        <CheckCircle2 size={14} className="absolute left-0.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" />
+                                    </div>
+                                    <span className="text-sm text-slate-600 leading-relaxed group-hover:text-slate-900 transition-colors">
+                                        我已阅读并同意 
+                                        <a href="#" className="text-primary-600 font-bold mx-1 hover:underline inline-flex items-center gap-0.5">
+                                            用户协议 <ExternalLink size={12} />
+                                        </a> 
+                                        与 
+                                        <a href="#" className="text-primary-600 font-bold mx-1 hover:underline inline-flex items-center gap-0.5">
+                                            隐私政策 <ExternalLink size={12} />
+                                        </a>
+                                    </span>
+                                </label>
+                            </div>
+                        )}
 
-                        <div style={{textAlign: 'center', marginTop: '1.2rem', color: '#64748b', fontSize: '0.9rem'}}>
-                            {authMode === 'login' ? '还没有账号？' : '已有账号？'}
-                            <a href="#" onClick={(e) => {
-                                e.preventDefault();
-                                setAuthMode(authMode === 'login' ? 'register' : 'login');
-                                setGlobalError('');
-                                setFieldErrors({
-                                    username: '', password: '', confirmPassword: '',
-                                    email: '', emailCode: '', captchaCode: ''
-                                });
-                                setFormData({
-                                    username: '', password: '', confirmPassword: '',
-                                    email: '', emailCode: '', captchaCode: ''
-                                });
-                            }} style={{
-                                color: 'var(--landing-primary)',
-                                fontWeight: 700,
-                                marginLeft: '6px',
-                                textDecoration: 'none'
-                            }}>
-                                {authMode === 'login' ? '免费注册' : '返回登录'}
-                            </a>
-                        </div>
+                        {/* Submit Button */}
+                        <button 
+                            type="submit"
+                            disabled={loading}
+                            className="w-full btn-primary py-4 text-lg font-bold rounded-2xl flex items-center justify-center gap-3 mt-4"
+                        >
+                            {loading ? <Loader2 className="animate-spin" size={24} /> : (
+                                <>
+                                    <span>
+                                        {authMode === 'login' ? '登 录' : authMode === 'register' ? '注 册' : '重置密码'}
+                                    </span>
+                                    <ChevronRight size={20} />
+                                </>
+                            )}
+                        </button>
                     </form>
 
-                    <div style={{
-                        textAlign: 'center',
-                        marginTop: '1.5rem',
-                        borderTop: '1px solid #e2e8f0',
-                        paddingTop: '1.2rem'
-                    }}>
-                        <a href="#" onClick={(e) => {
-                            e.preventDefault();
-                            navigate('/');
-                        }}
-                           style={{
-                               color: '#94a3b8',
-                               textDecoration: 'none',
-                               fontWeight: 500,
-                               display: 'inline-flex',
-                               alignItems: 'center',
-                               gap: '0.5rem',
-                               fontSize: '0.9rem'
-                           }}>
-                            <i className="fas fa-arrow-left"></i> 返回首页
-                        </a>
+                    {/* Footer Links */}
+                    <div className="mt-10 text-center">
+                        <div className="flex items-center justify-center gap-2 text-slate-500">
+                            {authMode === 'login' ? (
+                                <>
+                                    <span>还没有账号？</span>
+                                    <button 
+                                        onClick={() => setAuthMode('register')}
+                                        className="font-bold text-primary-600 hover:text-primary-700 transition-colors"
+                                    >
+                                        立即注册
+                                    </button>
+                                </>
+                            ) : (
+                                <button 
+                                    onClick={() => setAuthMode('login')}
+                                    className="flex items-center gap-2 font-bold text-primary-600 hover:text-primary-700 transition-colors"
+                                >
+                                    <ArrowLeft size={18} />
+                                    <span>返回登录</span>
+                                </button>
+                            )}
+                        </div>
                     </div>
+                </motion.div>
+
+                {/* Footer Copyright */}
+                <div className="mt-12 text-slate-400 text-xs sm:text-sm text-center">
+                    © 2026 AI Interview 团队 | 计算机设计大赛参赛项目
                 </div>
             </div>
+        </div>
+    );
+}
+
+// 辅助组件：输入框组
+function InputGroup({ 
+    label, 
+    name, 
+    type = 'text', 
+    icon, 
+    value, 
+    error, 
+    onChange, 
+    placeholder, 
+    required,
+    rightElement
+}: {
+    label: string;
+    name: string;
+    type?: string;
+    icon: React.ReactNode;
+    value: string;
+    error?: string;
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    placeholder: string;
+    required?: boolean;
+    rightElement?: React.ReactNode;
+}) {
+    return (
+        <div className="space-y-1.5 w-full">
+            <label className="text-sm font-semibold text-slate-700 ml-1 flex items-center gap-1">
+                {label}
+                {required && <span className="text-red-500">*</span>}
+            </label>
+            <div className="relative group">
+                <div className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${error ? 'text-red-400' : 'text-slate-400 group-focus-within:text-primary-600'}`}>
+                    {icon}
+                </div>
+                <input 
+                    type={type}
+                    name={name}
+                    value={value}
+                    onChange={onChange}
+                    placeholder={placeholder}
+                    className={`modern-input pl-11 pr-12 ${error ? 'border-red-500 focus:ring-red-500/10 focus:border-red-500' : ''}`}
+                />
+                {rightElement && (
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center">
+                        {rightElement}
+                    </div>
+                )}
+            </div>
+            <AnimatePresence>
+                {error && (
+                    <motion.p 
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="text-[11px] font-bold text-red-500 ml-1 flex items-center gap-1"
+                    >
+                        <AlertCircle size={12} />
+                        {error}
+                    </motion.p>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

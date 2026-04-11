@@ -53,10 +53,10 @@ spring:
   ai:
     openai:
       base-url: https://api.siliconflow.cn
-      api-key: sk-lqpupfhmmkcbrdofamzfnuwxsrbbnjukmwftgdpezdxfksmq
+      api-key: ${AI_BAILIAN_API_KEY}
       chat:
         options:
-          model: Pro/zai-org/GLM-5
+          model: ${AI_MODEL:Pro/zai-org/GLM-5}
           temperature: 0.2
       # Embedding模型配置 - 使用text-embedding-v3
       embedding:

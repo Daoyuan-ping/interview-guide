@@ -11,5 +11,5 @@ build
 # IDEA code analysis
 qodana.yaml
 
-app/src/main/resources/application-dev.yml
+/app/src/main/resources/application.yml
 /docs
